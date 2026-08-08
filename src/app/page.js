@@ -164,6 +164,7 @@ export default function Home() {
         "Nama_Jabatan", 
         "Jabatan", 
         "Petugas"
+        "Petugas Ukur"
       ]);
 
       let fullNoBerkas = formatValue(nomor);
@@ -176,7 +177,7 @@ export default function Home() {
 
       if (
         cleanedPosisi.toLowerCase() === "pengukuran dan pemetaan kadastral" ||
-        cleanedPosisi.toLowerCase() === "pengukuran dan pemetan kadastral"
+        cleanedPosisi.toLowerCase() === "pengukuran dan pemetaan kadastral"
       ) {
         cleanedPosisi = "-";
       }
