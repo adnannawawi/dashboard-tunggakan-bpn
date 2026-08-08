@@ -163,7 +163,6 @@ export default function Home() {
         "Petugas_Terakhir", 
         "Nama_Jabatan", 
         "Jabatan", 
-        "Petugas",
         "Petugas Ukur"
       ]);
 
