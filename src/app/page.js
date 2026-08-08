@@ -164,7 +164,7 @@ export default function Home() {
         "Nama_Jabatan", 
         "Jabatan", 
         "Petugas", 
-        "Petugas Ukur"
+        "Petugas Ukur",
       ]);
 
       let fullNoBerkas = formatValue(nomor);
