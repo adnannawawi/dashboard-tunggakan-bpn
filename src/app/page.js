@@ -15,7 +15,7 @@ import {
 import { Bar } from "react-chartjs-2";
 import "leaflet/dist/leaflet.css";
 
-// Dynamic Import untuk Leaflet GIS (mencegah error Server-Side Rendering di Next.js)
+// Dynamic Import Leaflet untuk Server-Side Rendering (Next.js)
 const MapContainer = dynamic(() => import("react-leaflet").then((m) => m.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import("react-leaflet").then((m) => m.TileLayer), { ssr: false });
 const CircleMarker = dynamic(() => import("react-leaflet").then((m) => m.CircleMarker), { ssr: false });
@@ -23,7 +23,11 @@ const Popup = dynamic(() => import("react-leaflet").then((m) => m.Popup), { ssr:
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
-export default function Home() {
+// Koordinat Pusat (Default: Kotawaringin Barat / Pangkalan Bun)
+const CENTER_LAT = -2.6833;
+const CENTER_LNG = 111.6167;
+
+export default function GEOTASDashboard() {
   const [dataRincian, setDataRincian] = useState([]);
   const [dataJabatan, setDataJabatan] = useState([]);
   const [dataLayanan, setDataLayanan] = useState([]);
@@ -31,16 +35,10 @@ export default function Home() {
   const [lastUpdated, setLastUpdated] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("semua");
+  const [basemap, setBasemap] = useState("osm"); // 'osm' | 'satellite'
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-
-  const formatCurrentTimestamp = () => {
-    return `${new Date().toLocaleString("id-ID", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    })} WIB`;
-  };
 
   const parseDate = (val) => {
     if (!val) return null;
@@ -57,10 +55,7 @@ export default function Home() {
       const cleanVal = val.trim();
       const parts = cleanVal.split("/");
       if (parts.length === 3) {
-        const day = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1;
-        const year = parseInt(parts[2], 10);
-        const date = new Date(year, month, day);
+        const date = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
         date.setHours(0, 0, 0, 0);
         return date;
       }
@@ -75,30 +70,20 @@ export default function Home() {
 
   const formatValue = (val) => {
     if (val === undefined || val === null || val === "" || String(val).trim() === "") return "-";
-    if (val instanceof Date && !isNaN(val)) {
-      return val.toLocaleDateString("id-ID");
-    }
+    if (val instanceof Date && !isNaN(val)) return val.toLocaleDateString("id-ID");
     if (typeof val === "number" && val > 30000 && val < 60000) {
-      const date = new Date(Math.round((val - 25569) * 86400 * 1000));
-      return date.toLocaleDateString("id-ID");
+      return new Date(Math.round((val - 25569) * 86400 * 1000)).toLocaleDateString("id-ID");
     }
     return String(val).replace(/\s+/g, " ").trim();
   };
 
   const calculateStatus = (jatuhtempoVal, tglSelesaiVal) => {
-    if (tglSelesaiVal && tglSelesaiVal !== "-" && tglSelesaiVal !== "") {
-      return "GREEN";
-    }
-
+    if (tglSelesaiVal && tglSelesaiVal !== "-" && tglSelesaiVal !== "") return "GREEN";
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
     const dueDate = parseDate(jatuhtempoVal);
     if (!dueDate) return "GREEN";
-
-    const diffTime = dueDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
+    const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     if (diffDays > 0) return "GREEN";
     if (diffDays === 0) return "YELLOW";
     return "RED";
@@ -107,20 +92,8 @@ export default function Home() {
   const getFieldValue = (rowObj, possibleKeys) => {
     const keys = Object.keys(rowObj);
     for (const p of possibleKeys) {
-      const exactKey = keys.find(
-        (k) => k.toLowerCase().replace(/[^a-z0-9]/g, "") === p.toLowerCase().replace(/[^a-z0-9]/g, "")
-      );
-      if (exactKey && rowObj[exactKey] !== undefined && String(rowObj[exactKey]).trim() !== "") {
-        return rowObj[exactKey];
-      }
-    }
-    for (const p of possibleKeys) {
-      const matchedKey = keys.find((k) =>
-        k.toLowerCase().replace(/[^a-z0-9]/g, "").includes(p.toLowerCase().replace(/[^a-z0-9]/g, ""))
-      );
-      if (matchedKey && rowObj[matchedKey] !== undefined && String(rowObj[matchedKey]).trim() !== "") {
-        return rowObj[matchedKey];
-      }
+      const exactKey = keys.find((k) => k.toLowerCase().replace(/[^a-z0-9]/g, "") === p.toLowerCase().replace(/[^a-z0-9]/g, ""));
+      if (exactKey && rowObj[exactKey] !== undefined && String(rowObj[exactKey]).trim() !== "") return rowObj[exactKey];
     }
     return undefined;
   };
@@ -128,7 +101,6 @@ export default function Home() {
   const generateAggregations = useCallback((list) => {
     const layananMap = {};
     const jabatanMap = {};
-
     list.forEach((item) => {
       const lay = item.namaKegiatan !== "-" ? item.namaKegiatan.trim() : "Layanan Lainnya";
       if (!layananMap[lay]) layananMap[lay] = { kategori: lay, jumlah: 0, sesuai: 0, hampir: 0, sudah: 0 };
@@ -137,72 +109,54 @@ export default function Home() {
       else if (item.status === "YELLOW") layananMap[lay].hampir += 1;
       else if (item.status === "RED") layananMap[lay].sudah += 1;
 
-      const jab = item.jabatan !== "-" ? item.jabatan.trim() : "Petugas / Posisi Lain";
+      const jab = item.jabatan !== "-" ? item.jabatan.trim() : "Petugas Lain";
       if (!jabatanMap[jab]) jabatanMap[jab] = { kategori: jab, jumlah: 0, sesuai: 0, hampir: 0, sudah: 0 };
       jabatanMap[jab].jumlah += 1;
       if (item.status === "GREEN") jabatanMap[jab].sesuai += 1;
       else if (item.status === "YELLOW") jabatanMap[jab].hampir += 1;
       else if (item.status === "RED") jabatanMap[jab].sudah += 1;
     });
-
     setDataLayanan(Object.values(layananMap));
     setDataJabatan(Object.values(jabatanMap));
   }, []);
 
   const processExcelData = useCallback((rows) => {
     const rincianList = [];
-
-    rows.forEach((row) => {
+    rows.forEach((row, idx) => {
       const nomor = getFieldValue(row, ["Nomor_Berkas", "No_Berkas", "Nomor", "NoBerkas"]);
       const tahun = getFieldValue(row, ["Tahun_Berkas", "Tahun"]);
       const tglTerdaftar = getFieldValue(row, ["Tanggal_Terdaftar", "Tgl_Terdaftar", "Terdaftar"]);
       const jatuhtempo = getFieldValue(row, ["Jatuh_Tempo", "Jatuhtempo", "Tempo"]);
       const tglSelesai = getFieldValue(row, ["Tanggal_Selesai", "Tgl_Selesai", "Selesai"]);
-      const tglDiserahkan = getFieldValue(row, ["Tanggal_Diserahkan", "Tgl_Diserahkan", "Dikirim"]);
       const rawKegiatan = getFieldValue(row, ["Nama_Kegiatan", "Nama_Layanan", "Kegiatan", "Layanan"]);
-      const rawPosisi = getFieldValue(row, [
-        "Petugas_Ukur",
-        "PetugasUkur",
-        "Nama_Petugas",
-        "Petugas_Terakhir",
-        "Nama_Jabatan",
-        "Jabatan",
-        "Petugas",
-        "Posisi_Terakhir", 
-        "Posisi_Berkas"
-      ]);
+      const rawPosisi = getFieldValue(row, ["Petugas_Ukur", "Petugas", "Nama_Jabatan", "Jabatan", "Posisi_Berkas"]);
 
-      // Ekstraksi Atribut Koordinat GIS (jika ada di Excel/JSON)
-      const latVal = parseFloat(getFieldValue(row, ["Latitude", "Lat", "Y"]) || 0);
-      const lngVal = parseFloat(getFieldValue(row, ["Longitude", "Lng", "Long", "X"]) || 0);
+      // Koordinat Asli atau Fallback Simulasi Geospasial GEOTAS
+      let latVal = parseFloat(getFieldValue(row, ["Latitude", "Lat", "Y"]));
+      let lngVal = parseFloat(getFieldValue(row, ["Longitude", "Lng", "Long", "X"]));
 
-      let fullNoBerkas = formatValue(nomor);
-      if (tahun && String(nomor) !== "-" && String(tahun) !== "-") {
-        fullNoBerkas = `${nomor}/${tahun}`;
+      if (isNaN(latVal) || latVal === 0) {
+        latVal = CENTER_LAT + (Math.sin(idx * 7) * 0.08);
+      }
+      if (isNaN(lngVal) || lngVal === 0) {
+        lngVal = CENTER_LNG + (Math.cos(idx * 7) * 0.08);
       }
 
-      let cleanedKegiatan = formatValue(rawKegiatan);
-      let cleanedPosisi = formatValue(rawPosisi);
-
-      if (cleanedKegiatan.includes("Pemetan")) cleanedKegiatan = cleanedKegiatan.replace(/Pemetan/g, "Pemetaan");
-      if (cleanedPosisi.includes("Pemetan")) cleanedPosisi = cleanedPosisi.replace(/Pemetan/g, "Pemetaan");
+      let fullNoBerkas = formatValue(nomor);
+      if (tahun && String(nomor) !== "-" && String(tahun) !== "-") fullNoBerkas = `${nomor}/${tahun}`;
 
       if (fullNoBerkas !== "-") {
-        const computedStatus = calculateStatus(jatuhtempo, tglSelesai);
-
         rincianList.push({
           noBerkas: fullNoBerkas,
           tglTerdaftar: formatValue(tglTerdaftar),
-          tglDikirim: formatValue(tglDiserahkan),
           jatuhtempo: formatValue(jatuhtempo),
           tglSelesai: formatValue(tglSelesai),
-          namaKegiatan: cleanedKegiatan,
+          namaKegiatan: formatValue(rawKegiatan),
           namaPemohon: formatValue(getFieldValue(row, ["Nama_Pemohon", "Pemohon"])),
-          status: computedStatus,
-          jabatan: cleanedPosisi,
-          // Koordinat Geospasial
-          lat: !isNaN(latVal) && latVal !== 0 ? latVal : null,
-          lng: !isNaN(lngVal) && lngVal !== 0 ? lngVal : null,
+          status: calculateStatus(jatuhtempo, tglSelesai),
+          jabatan: formatValue(rawPosisi),
+          lat: latVal,
+          lng: lngVal,
         });
       }
     });
@@ -214,12 +168,8 @@ export default function Home() {
 
   const processAndSetData = useCallback((rawJsonData, sourceName) => {
     if (!Array.isArray(rawJsonData) || rawJsonData.length === 0) return;
-
     setFileName(sourceName);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("atr_bpn_file_name", sourceName);
-    }
-
+    if (typeof window !== "undefined") localStorage.setItem("atr_bpn_file_name", sourceName);
     processExcelData(rawJsonData);
   }, [processExcelData]);
 
@@ -227,62 +177,47 @@ export default function Home() {
     const fetchDataAuto = async () => {
       const savedFileName = localStorage.getItem("atr_bpn_file_name");
       const savedTimestamp = localStorage.getItem("atr_bpn_last_updated");
-
       if (savedTimestamp) setLastUpdated(savedTimestamp);
       if (savedFileName) setFileName(savedFileName);
 
       try {
         const res = await fetch(`/api/ingest?t=${Date.now()}`);
         const result = await res.json();
-        
         if (result.success && result.data && result.data.length > 0) {
           processAndSetData(result.data, savedFileName || "Auto-Sync Web ATR/BPN");
-
           if (result.lastUpdated) {
             setLastUpdated(result.lastUpdated);
             localStorage.setItem("atr_bpn_last_updated", result.lastUpdated);
           }
         }
       } catch (err) {
-        console.error("Gagal mengambil data otomatis:", err);
+        console.error("Autosync Error:", err);
       }
     };
-
     fetchDataAuto();
   }, [processAndSetData]);
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    const nowStr = `${new Date().toLocaleString("id-ID")} WIB`;
+    setLastUpdated(nowStr);
+    localStorage.setItem("atr_bpn_last_updated", nowStr);
 
-    const newTimestamp = formatCurrentTimestamp();
-    setLastUpdated(newTimestamp);
-    localStorage.setItem("atr_bpn_last_updated", newTimestamp);
-
-    const isJson = file.name.endsWith(".json");
-
-    if (isJson) {
-      const reader = new FileReader();
+    const reader = new FileReader();
+    if (file.name.endsWith(".json")) {
       reader.onload = (evt) => {
         try {
-          const parsedData = JSON.parse(evt.target.result);
-          const dataArray = Array.isArray(parsedData) ? parsedData : parsedData.data || [];
-          processAndSetData(dataArray, file.name);
-        } catch (err) {
-          alert("Gagal membaca file JSON. Pastikan format file benar.");
-        }
+          const parsed = JSON.parse(evt.target.result);
+          processAndSetData(Array.isArray(parsed) ? parsed : parsed.data || [], file.name);
+        } catch (err) { alert("Format JSON tidak valid"); }
       };
       reader.readAsText(file);
     } else {
-      const reader = new FileReader();
       reader.onload = (evt) => {
-        const bstr = evt.target.result;
-        const workbook = XLSX.read(bstr, { type: "binary", cellDates: true });
-        const sheetName = workbook.SheetNames[0];
-        const ws = workbook.Sheets[sheetName];
-
-        const rawDataJson = XLSX.utils.sheet_to_json(ws, { defval: "" });
-        processAndSetData(rawDataJson, file.name);
+        const wb = XLSX.read(evt.target.result, { type: "binary", cellDates: true });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        processAndSetData(XLSX.utils.sheet_to_json(ws, { defval: "" }), file.name);
       };
       reader.readAsBinaryString(file);
     }
@@ -293,322 +228,136 @@ export default function Home() {
   const totalHampir = dataRincian.filter((i) => i.status === "YELLOW").length;
   const totalSudah = dataRincian.filter((i) => i.status === "RED").length;
 
-  const pctSesuai = totalBerkas > 0 ? Math.round((totalSesuai / totalBerkas) * 100) : 0;
-  const pctHampir = totalBerkas > 0 ? Math.round((totalHampir / totalBerkas) * 100) : 0;
-  const pctSudah = totalBerkas > 0 ? Math.round((totalSudah / totalBerkas) * 100) : 0;
-
   const filteredRincian = useMemo(() => {
     return dataRincian.filter((item) => {
-      let matchesFilter = true;
-      if (selectedFilter === "sesuai") matchesFilter = item.status === "GREEN";
-      if (selectedFilter === "hampir") matchesFilter = item.status === "YELLOW";
-      if (selectedFilter === "sudah") matchesFilter = item.status === "RED";
+      let matchFilter = true;
+      if (selectedFilter === "sesuai") matchFilter = item.status === "GREEN";
+      if (selectedFilter === "hampir") matchFilter = item.status === "YELLOW";
+      if (selectedFilter === "sudah") matchFilter = item.status === "RED";
 
       const q = searchQuery.toLowerCase();
-      const matchesSearch =
+      const matchSearch =
         item.noBerkas.toLowerCase().includes(q) ||
         item.namaPemohon.toLowerCase().includes(q) ||
         item.namaKegiatan.toLowerCase().includes(q) ||
         item.jabatan.toLowerCase().includes(q);
 
-      return matchesFilter && matchesSearch;
+      return matchFilter && matchSearch;
     });
   }, [dataRincian, selectedFilter, searchQuery]);
 
-  // Data lokasi yang memiliki koordinat valid untuk Peta GIS
-  const mapLocations = useMemo(() => {
-    return filteredRincian.filter((item) => item.lat && item.lng);
-  }, [filteredRincian]);
-
-  const totalPages = Math.ceil(filteredRincian.length / itemsPerPage) || 1;
   const paginatedRincian = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return filteredRincian.slice(start, start + itemsPerPage);
   }, [filteredRincian, currentPage]);
 
-  const chartDataLayanan = {
-    labels: dataLayanan.map((item) => item.kategori),
-    datasets: [
-      { label: "Aman (GREEN)", data: dataLayanan.map((item) => item.sesuai), backgroundColor: "#10b981", borderRadius: 4 },
-      { label: "Hari H (YELLOW)", data: dataLayanan.map((item) => item.hampir), backgroundColor: "#f59e0b", borderRadius: 4 },
-      { label: "Terlambat (RED)", data: dataLayanan.map((item) => item.sudah), backgroundColor: "#ef4444", borderRadius: 4 },
-    ],
-  };
-
-  const chartOptionsLayanan = {
-    indexAxis: "y",
-    responsive: true,
-    maintainAspectRatio: false,
-    scales: {
-      x: { stacked: true, grid: { color: "#f1f5f9" } },
-      y: { stacked: true, grid: { display: false } },
-    },
-    plugins: {
-      legend: { position: "top" },
-    },
-  };
-
-  const topRedJabatan = useMemo(() => {
-    return [...dataJabatan]
-      .filter((j) => j.sudah > 0)
-      .sort((a, b) => b.sudah - a.sudah)
-      .slice(0, 10);
-  }, [dataJabatan]);
-
-  const chartDataJabatan = {
-    labels: topRedJabatan.map((item) => item.kategori),
-    datasets: [
-      { label: "Berkas Terlambat (RED)", data: topRedJabatan.map((item) => item.sudah), backgroundColor: "#dc2626", borderRadius: 4 },
-    ],
-  };
-
-  const chartOptionsJabatan = {
-    indexAxis: "y",
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-    },
-    scales: {
-      x: { grid: { color: "#f1f5f9" } },
-      y: { grid: { display: false } },
-    },
-  };
-
-  const getStatusBadge = (status) => {
-    if (status === "GREEN") {
-      return (
-        <span style={{ backgroundColor: "#d1fae5", color: "#065f46", border: "1px solid #a7f3d0", padding: "4px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "700", display: "inline-flex", alignItems: "center", gap: "4px" }}>
-          <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#10b981" }}></span> GREEN
-        </span>
-      );
-    }
-    if (status === "YELLOW") {
-      return (
-        <span style={{ backgroundColor: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "4px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "700", display: "inline-flex", alignItems: "center", gap: "4px" }}>
-          <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#f59e0b" }}></span> YELLOW
-        </span>
-      );
-    }
-    return (
-      <span style={{ backgroundColor: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5", padding: "4px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "700", display: "inline-flex", alignItems: "center", gap: "4px" }}>
-        <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#ef4444" }}></span> RED
-      </span>
-    );
-  };
-
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#f1f5f9", padding: "32px 20px", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
-      <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
-        
-        <style jsx global>{`
-          @media print {
-            body, html { 
-              background: white !important; 
-              padding: 0 !important; 
-              margin: 0 !important;
-              height: auto !important;
-              overflow: visible !important;
-            }
-            .no-print { display: none !important; }
-            .print-container { 
-              width: 100% !important; 
-              max-width: 100% !important; 
-              overflow: visible !important; 
-              position: static !important;
-            }
-            .card-box { 
-              box-shadow: none !important; 
-              border: 1px solid #cbd5e1 !important; 
-              overflow: visible !important;
-              page-break-inside: auto;
-            }
-            .table-responsive-wrapper {
-              overflow: visible !important;
-              height: auto !important;
-            }
-            table { 
-              page-break-inside: auto;
-              width: 100% !important;
-            }
-            tr { 
-              page-break-inside: avoid; 
-              page-break-after: auto;
-            }
-            thead { 
-              display: table-header-group; 
-            }
-          }
-        `}</style>
-
-        {/* Header Dashboard */}
-        <header style={{ marginBottom: "28px", backgroundColor: "#0f172a", color: "white", padding: "28px 32px", borderRadius: "16px", boxShadow: "0 10px 25px -5px rgba(15, 23, 42, 0.25)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "20px" }}>
+    <div style={{ minHeight: "100vh", backgroundColor: "#0f172a", color: "#f8fafc", fontFamily: "'Inter', sans-serif" }}>
+      
+      {/* Header Utama GEOTAS */}
+      <header style={{ borderBottom: "1px solid #1e293b", padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#020617" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ backgroundColor: "#2563eb", padding: "8px 12px", borderRadius: "8px", fontWeight: "900", fontSize: "18px", letterSpacing: "1px" }}>
+            GEOTAS
+          </div>
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
-              <div style={{ display: "inline-block", backgroundColor: "#1e293b", color: "#38bdf8", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: "600" }}>
-                Sistem Informasi Geospasial & Pertanahan (GIS)
-              </div>
-              {lastUpdated && (
-                <div style={{ fontSize: "11px", color: "#94a3b8", display: "flex", alignItems: "center", gap: "4px" }}>
-                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#10b981", display: "inline-block" }}></span>
-                  Last Update: {lastUpdated}
-                </div>
-              )}
-            </div>
-            <h1 style={{ margin: 0, fontSize: "24px", fontWeight: "700", letterSpacing: "-0.5px" }}>Dashboard Eksekutif Monitoring Tunggakan Berkas</h1>
-            <p style={{ margin: "4px 0 0 0", color: "#94a3b8", fontSize: "15px" }}>Kantor Pertanahan Kabupaten Kotawaringin Barat</p>
-          </div>
-
-          <div className="no-print" style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-            <button
-              onClick={() => window.print()}
-              style={{
-                backgroundColor: "#2563eb",
-                color: "white",
-                border: "none",
-                padding: "10px 16px",
-                borderRadius: "10px",
-                fontSize: "13px",
-                fontWeight: "600",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px"
-              }}
-            >
-              🖨️ Cetak Laporan PDF
-            </button>
-
-            <div style={{ backgroundColor: "#1e293b", border: "1px solid #334155", padding: "10px 16px", borderRadius: "12px" }}>
-              <label style={{ display: "block", fontSize: "11px", color: "#cbd5e1", marginBottom: "4px", fontWeight: "600" }}>
-                📤 Upload Excel / JSON (Back Office)
-              </label>
-              <input type="file" accept=".xlsx, .xls, .json" onChange={handleFileUpload} style={{ fontSize: "11px", color: "#94a3b8" }} />
-              {fileName && (
-                <div style={{ margin: "4px 0 0 0", fontSize: "11px", color: "#38bdf8", fontWeight: "500" }}>
-                  <p style={{ margin: 0 }}>✓ File dimuat: {fileName}</p>
-                  {lastUpdated && <p style={{ margin: "2px 0 0 0", color: "#94a3b8", fontSize: "10px" }}>🕒 Sync: {lastUpdated}</p>}
-                </div>
-              )}
-            </div>
-          </div>
-        </header>
-
-        {/* Card KPI Metrics */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "20px", marginBottom: "28px" }}>
-          <div 
-            onClick={() => { setSelectedFilter("semua"); setCurrentPage(1); }}
-            className="card-box"
-            style={{ 
-              backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "semua" ? "2px solid #2563eb" : "1px solid #e2e8f0",
-              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", cursor: "pointer"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", color: "#64748b", fontSize: "13px", fontWeight: "600" }}>
-              <span>Total Berkas</span>
-              <span>📦</span>
-            </div>
-            <h2 style={{ margin: "10px 0 8px 0", fontSize: "32px", fontWeight: "800", color: "#0f172a" }}>{totalBerkas}</h2>
-            <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>Semua berkas yang terdata</p>
-          </div>
-
-          <div 
-            onClick={() => { setSelectedFilter("sesuai"); setCurrentPage(1); }}
-            className="card-box"
-            style={{ 
-              backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "sesuai" ? "2px solid #10b981" : "1px solid #e2e8f0",
-              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", cursor: "pointer"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", color: "#047857", fontSize: "13px", fontWeight: "600" }}>
-              <span>Belum Jatuh Tempo (GREEN)</span>
-              <span>🟢</span>
-            </div>
-            <h2 style={{ margin: "10px 0 8px 0", fontSize: "32px", fontWeight: "800", color: "#059669" }}>{totalSesuai}</h2>
-            <div style={{ width: "100%", backgroundColor: "#e2e8f0", height: "6px", borderRadius: "3px", overflow: "hidden" }}>
-              <div style={{ width: `${pctSesuai}%`, backgroundColor: "#10b981", height: "100%" }}></div>
-            </div>
-            <p style={{ margin: "6px 0 0 0", fontSize: "12px", color: "#64748b" }}>{pctSesuai}% dari total berkas</p>
-          </div>
-
-          <div 
-            onClick={() => { setSelectedFilter("hampir"); setCurrentPage(1); }}
-            className="card-box"
-            style={{ 
-              backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "hampir" ? "2px solid #f59e0b" : "1px solid #e2e8f0",
-              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", cursor: "pointer"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", color: "#b45309", fontSize: "13px", fontWeight: "600" }}>
-              <span>Hampir Jatuh Tempo (YELLOW)</span>
-              <span>🟡</span>
-            </div>
-            <h2 style={{ margin: "10px 0 8px 0", fontSize: "32px", fontWeight: "800", color: "#d97706" }}>{totalHampir}</h2>
-            <div style={{ width: "100%", backgroundColor: "#e2e8f0", height: "6px", borderRadius: "3px", overflow: "hidden" }}>
-              <div style={{ width: `${pctHampir}%`, backgroundColor: "#f59e0b", height: "100%" }}></div>
-            </div>
-            <p style={{ margin: "6px 0 0 0", fontSize: "12px", color: "#64748b" }}>{pctHampir}% jatuh tempo hari ini</p>
-          </div>
-
-          <div 
-            onClick={() => { setSelectedFilter("sudah"); setCurrentPage(1); }}
-            className="card-box"
-            style={{ 
-              backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "sudah" ? "2px solid #ef4444" : "1px solid #e2e8f0",
-              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", cursor: "pointer"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", color: "#b91c1c", fontSize: "13px", fontWeight: "600" }}>
-              <span>Terlambat (RED)</span>
-              <span>🔴</span>
-            </div>
-            <h2 style={{ margin: "10px 0 8px 0", fontSize: "32px", fontWeight: "800", color: "#dc2626" }}>{totalSudah}</h2>
-            <div style={{ width: "100%", backgroundColor: "#e2e8f0", height: "6px", borderRadius: "3px", overflow: "hidden" }}>
-              <div style={{ width: `${pctSudah}%`, backgroundColor: "#ef4444", height: "100%" }}></div>
-            </div>
-            <p style={{ margin: "6px 0 0 0", fontSize: "12px", color: "#64748b" }}>{pctSudah}% melebihi jatuh tempo</p>
+            <h1 style={{ margin: 0, fontSize: "18px", fontWeight: "700" }}>Geospatial Online Tracking System</h1>
+            <p style={{ margin: 0, fontSize: "12px", color: "#94a3b8" }}>Kantor Pertanahan Kabupaten Kotawaringin Barat</p>
           </div>
         </div>
 
-        {/* --- KOMPONEN PETA INTERAKTIF GIS --- */}
-        <div className="card-box print-container" style={{ backgroundColor: "white", padding: "24px", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0", marginBottom: "28px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "10px" }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: "16px", color: "#0f172a", fontWeight: "700" }}>🗺️ Peta Sebaran Geospasial Berkas Pertanahan (GIS)</h3>
-              <p style={{ margin: "4px 0 0 0", fontSize: "12px", color: "#64748b" }}>
-                Menampilkan {mapLocations.length} lokasi titik berkas berdasarkan filter aktif
-              </p>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div style={{ fontSize: "12px", color: "#94a3b8" }}>
+            {lastUpdated && <span>Sync: <b style={{ color: "#38bdf8" }}>{lastUpdated}</b></span>}
+          </div>
+          <label style={{ backgroundColor: "#1e293b", border: "1px solid #334155", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", cursor: "pointer" }}>
+            📤 Upload Excel/JSON
+            <input type="file" accept=".xlsx, .xls, .json" onChange={handleFileUpload} style={{ display: "none" }} />
+          </label>
+        </div>
+      </header>
+
+      <div style={{ padding: "20px", maxWidth: "1600px", margin: "0 auto" }}>
+        
+        {/* KPI Ringkasan Status GEOTAS */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "20px" }}>
+          {[
+            { id: "semua", label: "TOTAL BERKAS", val: totalBerkas, color: "#38bdf8" },
+            { id: "sesuai", label: "AMAN (GREEN)", val: totalSesuai, color: "#10b981" },
+            { id: "hampir", label: "HARI H (YELLOW)", val: totalHampir, color: "#f59e0b" },
+            { id: "sudah", label: "TERLAMBAT (RED)", val: totalSudah, color: "#ef4444" },
+          ].map((kpi) => (
+            <div
+              key={kpi.id}
+              onClick={() => { setSelectedFilter(kpi.id); setCurrentPage(1); }}
+              style={{
+                backgroundColor: "#1e293b",
+                padding: "16px",
+                borderRadius: "10px",
+                border: selectedFilter === kpi.id ? `2px solid ${kpi.color}` : "1px solid #334155",
+                cursor: "pointer"
+              }}
+            >
+              <div style={{ fontSize: "11px", fontWeight: "700", color: "#94a3b8" }}>{kpi.label}</div>
+              <div style={{ fontSize: "28px", fontWeight: "800", color: kpi.color, marginTop: "4px" }}>{kpi.val}</div>
             </div>
-            <div style={{ display: "flex", gap: "12px", fontSize: "12px", fontWeight: "600" }}>
-              <span style={{ color: "#10b981", display: "flex", alignItems: "center", gap: "4px" }}>🟢 Aman ({mapLocations.filter(m => m.status === 'GREEN').length})</span>
-              <span style={{ color: "#f59e0b", display: "flex", alignItems: "center", gap: "4px" }}>🟡 Hari H ({mapLocations.filter(m => m.status === 'YELLOW').length})</span>
-              <span style={{ color: "#ef4444", display: "flex", alignItems: "center", gap: "4px" }}>🔴 Terlambat ({mapLocations.filter(m => m.status === 'RED').length})</span>
+          ))}
+        </div>
+
+        {/* --- PANEL PETA GEOTAS INTERAKTIF --- */}
+        <div style={{ backgroundColor: "#1e293b", borderRadius: "12px", border: "1px solid #334155", padding: "16px", marginBottom: "20px", position: "relative" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ fontSize: "16px" }}>🗺️</span>
+              <h3 style={{ margin: 0, fontSize: "15px", color: "#f8fafc" }}>Peta Sebaran Persil & Berkas Pertanahan</h3>
+            </div>
+
+            {/* Control Basemap Switcher (GEOTAS Feature) */}
+            <div style={{ display: "flex", gap: "6px", backgroundColor: "#0f172a", padding: "4px", borderRadius: "6px", border: "1px solid #334155" }}>
+              <button
+                onClick={() => setBasemap("osm")}
+                style={{
+                  backgroundColor: basemap === "osm" ? "#2563eb" : "transparent",
+                  color: "white", border: "none", padding: "4px 10px", borderRadius: "4px", fontSize: "11px", cursor: "pointer"
+                }}
+              >
+                Peta Jalan
+              </button>
+              <button
+                onClick={() => setBasemap("satellite")}
+                style={{
+                  backgroundColor: basemap === "satellite" ? "#2563eb" : "transparent",
+                  color: "white", border: "none", padding: "4px 10px", borderRadius: "4px", fontSize: "11px", cursor: "pointer"
+                }}
+              >
+                Satelit / Citra
+              </button>
             </div>
           </div>
 
-          <div style={{ height: "420px", width: "100%", borderRadius: "12px", overflow: "hidden", border: "1px solid #cbd5e1" }}>
+          <div style={{ height: "480px", width: "100%", borderRadius: "8px", overflow: "hidden" }}>
             {typeof window !== "undefined" && (
-              <MapContainer 
-                center={[-2.238, 111.625]} 
-                zoom={10} 
-                style={{ height: "100%", width: "100%" }}
-              >
+              <MapContainer center={[CENTER_LAT, CENTER_LNG]} zoom={11} style={{ height: "100%", width: "100%" }}>
                 <TileLayer
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url={
+                    basemap === "satellite"
+                      ? "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                      : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  }
+                  attribution="&copy; ESRI / OpenStreetMap / ATR BPN GEOTAS"
                 />
-                {mapLocations.map((item, idx) => {
+                {filteredRincian.map((item, idx) => {
                   const color = item.status === "GREEN" ? "#10b981" : item.status === "YELLOW" ? "#f59e0b" : "#ef4444";
                   return (
                     <CircleMarker
                       key={idx}
                       center={[item.lat, item.lng]}
-                      radius={8}
-                      pathOptions={{ fillColor: color, color: "#ffffff", weight: 2, fillOpacity: 0.85 }}
+                      radius={7}
+                      pathOptions={{ fillColor: color, color: "#ffffff", weight: 1.5, fillOpacity: 0.9 }}
                     >
                       <Popup>
-                        <div style={{ fontFamily: "sans-serif", fontSize: "12px", color: "#1e293b" }}>
-                          <strong style={{ fontSize: "13px", color: "#2563eb" }}>No Berkas: {item.noBerkas}</strong><br />
+                        <div style={{ color: "#0f172a", fontSize: "12px", fontFamily: "sans-serif" }}>
+                          <strong style={{ color: "#2563eb" }}>No Berkas: {item.noBerkas}</strong><br />
                           <b>Pemohon:</b> {item.namaPemohon}<br />
                           <b>Kegiatan:</b> {item.namaKegiatan}<br />
                           <b>Posisi:</b> {item.jabatan}<br />
@@ -623,169 +372,54 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Visualisasi Grafik Chart */}
-        {dataLayanan.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: topRedJabatan.length > 0 ? "2fr 1fr" : "1fr", gap: "20px", marginBottom: "28px" }}>
-            <div className="card-box" style={{ backgroundColor: "white", padding: "24px", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
-              <h3 style={{ margin: "0 0 16px 0", fontSize: "15px", color: "#0f172a", fontWeight: "700" }}>📊 Grafik Status per Jenis Layanan</h3>
-              <div style={{ height: "300px" }}>
-                <Bar data={chartDataLayanan} options={chartOptionsLayanan} />
-              </div>
-            </div>
-
-            {topRedJabatan.length > 0 && (
-              <div className="card-box" style={{ backgroundColor: "white", padding: "24px", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
-                <h3 style={{ margin: "0 0 6px 0", fontSize: "15px", color: "#991b1b", fontWeight: "700" }}>⚠️ Top Bottleneck</h3>
-                <p style={{ margin: "0 0 16px 0", fontSize: "12px", color: "#64748b" }}>Petugas dengan berkas RED terbanyak</p>
-                <div style={{ height: "240px" }}>
-                  <Bar data={chartDataJabatan} options={chartOptionsJabatan} />
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Tabel Data */}
-        <div className="card-box print-container" style={{ backgroundColor: "white", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
-          <div className="no-print" style={{ padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px", borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              {[
-                { id: "semua", label: "Semua Berkas" },
-                { id: "sesuai", label: "🟢 GREEN (Aman)" },
-                { id: "hampir", label: "🟡 YELLOW (Hari H)" },
-                { id: "sudah", label: "🔴 RED (Terlambat)" },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => { setSelectedFilter(tab.id); setCurrentPage(1); }}
-                  style={{
-                    padding: "6px 14px",
-                    borderRadius: "8px",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                    border: "1px solid",
-                    borderColor: selectedFilter === tab.id ? "#2563eb" : "#cbd5e1",
-                    backgroundColor: selectedFilter === tab.id ? "#eff6ff" : "white",
-                    color: selectedFilter === tab.id ? "#1d4ed8" : "#475569",
-                    cursor: "pointer",
-                  }}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
+        {/* Tabel Monitoring GEOTAS */}
+        <div style={{ backgroundColor: "#1e293b", borderRadius: "12px", border: "1px solid #334155", overflow: "hidden" }}>
+          <div style={{ padding: "16px", display: "flex", justifyContent: "space-between", gap: "12px", borderBottom: "1px solid #334155" }}>
             <input
               type="text"
-              placeholder="🔍 Cari No Berkas, Pemohon, Layanan, Posisi..."
+              placeholder="🔍 Cari No Berkas, Pemohon, Petugas..."
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
               style={{
-                padding: "8px 14px",
-                border: "1px solid #cbd5e1",
-                borderRadius: "8px",
-                fontSize: "13px",
-                minWidth: "280px",
-                outline: "none"
+                backgroundColor: "#0f172a", border: "1px solid #334155", color: "white", padding: "8px 12px", borderRadius: "6px", fontSize: "13px", minWidth: "300px"
               }}
             />
           </div>
 
-          <div className="table-responsive-wrapper">
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", color: "#334155" }}>
-              <thead>
-                <tr style={{ backgroundColor: "#f1f5f9", borderBottom: "1px solid #cbd5e1", textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.5px" }}>
-                  <th style={{ padding: "14px 16px", textAlign: "center", width: "40px", color: "#1e3a8a", fontWeight: "700" }}>#</th>
-                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Nomor Berkas</th>
-                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Tgl Terdaftar</th>
-                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Jatuh Tempo</th>
-                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Tgl Selesai</th>
-                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Nama Kegiatan</th>
-                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Nama Pemohon</th>
-                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Posisi Terakhir / Petugas</th>
-                  <th style={{ padding: "14px 16px", textAlign: "center", color: "#1e3a8a", fontWeight: "700" }}>Status</th>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", color: "#cbd5e1" }}>
+            <thead>
+              <tr style={{ backgroundColor: "#0f172a", textTransform: "uppercase", fontSize: "11px", color: "#94a3b8" }}>
+                <th style={{ padding: "12px 16px", textAlign: "left" }}>No Berkas</th>
+                <th style={{ padding: "12px 16px", textAlign: "left" }}>Tgl Terdaftar</th>
+                <th style={{ padding: "12px 16px", textAlign: "left" }}>Jatuh Tempo</th>
+                <th style={{ padding: "12px 16px", textAlign: "left" }}>Kegiatan</th>
+                <th style={{ padding: "12px 16px", textAlign: "left" }}>Pemohon</th>
+                <th style={{ padding: "12px 16px", textAlign: "left" }}>Posisi / Petugas</th>
+                <th style={{ padding: "12px 16px", textAlign: "center" }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedRincian.map((row, idx) => (
+                <tr key={idx} style={{ borderBottom: "1px solid #334155" }}>
+                  <td style={{ padding: "12px 16px", fontWeight: "700", color: "#38bdf8" }}>{row.noBerkas}</td>
+                  <td style={{ padding: "12px 16px" }}>{row.tglTerdaftar}</td>
+                  <td style={{ padding: "12px 16px" }}>{row.jatuhtempo}</td>
+                  <td style={{ padding: "12px 16px" }}>{row.namaKegiatan}</td>
+                  <td style={{ padding: "12px 16px" }}>{row.namaPemohon}</td>
+                  <td style={{ padding: "12px 16px" }}>{row.jabatan}</td>
+                  <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                    <span style={{
+                      padding: "4px 8px", borderRadius: "12px", fontSize: "10px", fontWeight: "700",
+                      backgroundColor: row.status === "GREEN" ? "#064e3b" : row.status === "YELLOW" ? "#78350f" : "#7f1d1d",
+                      color: row.status === "GREEN" ? "#6ee7b7" : row.status === "YELLOW" ? "#fde047" : "#fca5a5",
+                    }}>
+                      {row.status}
+                    </span>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {paginatedRincian.length > 0 ? (
-                  paginatedRincian.map((row, idx) => (
-                    <tr 
-                      key={idx} 
-                      style={{ 
-                        borderBottom: "1px solid #f1f5f9",
-                        backgroundColor: idx % 2 === 0 ? "white" : "#f8fafc"
-                      }}
-                    >
-                      <td style={{ padding: "12px 16px", textAlign: "center", color: "#94a3b8", fontWeight: "600" }}>
-                        {(currentPage - 1) * itemsPerPage + idx + 1}
-                      </td>
-                      <td style={{ padding: "12px 16px", fontWeight: "700", color: "#1d4ed8" }}>{row.noBerkas}</td>
-                      <td style={{ padding: "12px 16px" }}>{row.tglTerdaftar}</td>
-                      <td style={{ padding: "12px 16px", fontWeight: "600" }}>{row.jatuhtempo}</td>
-                      <td style={{ padding: "12px 16px" }}>{row.tglSelesai}</td>
-                      <td style={{ padding: "12px 16px", fontWeight: "500" }}>{row.namaKegiatan}</td>
-                      <td style={{ padding: "12px 16px", fontWeight: "600", textTransform: "uppercase" }}>{row.namaPemohon}</td>
-                      <td style={{ padding: "12px 16px", color: "#475569", fontWeight: "500" }}>{row.jabatan}</td>
-                      <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                        {getStatusBadge(row.status)}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="9" style={{ textAlign: "center", padding: "32px", color: "#94a3b8" }}>
-                      {dataRincian.length === 0 
-                        ? "Memuat data..." 
-                        : "Tidak ditemukan data yang cocok dengan kriteria filter"}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {filteredRincian.length > itemsPerPage && (
-            <div className="no-print" style={{ padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
-              <span style={{ fontSize: "12px", color: "#64748b" }}>
-                Menampilkan {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredRincian.length)} dari {filteredRincian.length} berkas
-              </span>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <button
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage((p) => p - 1)}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: "6px",
-                    border: "1px solid #cbd5e1",
-                    backgroundColor: currentPage === 1 ? "#f1f5f9" : "white",
-                    color: currentPage === 1 ? "#94a3b8" : "#334155",
-                    cursor: currentPage === 1 ? "not-allowed" : "pointer",
-                    fontSize: "12px"
-                  }}
-                >
-                  ← Sebelumnya
-                </button>
-                <span style={{ padding: "6px 12px", fontSize: "12px", fontWeight: "600", color: "#1e293b" }}>
-                  Halaman {currentPage} dari {totalPages}
-                </span>
-                <button
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage((p) => p + 1)}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: "6px",
-                    border: "1px solid #cbd5e1",
-                    backgroundColor: currentPage === totalPages ? "#f1f5f9" : "white",
-                    color: currentPage === totalPages ? "#94a3b8" : "#334155",
-                    cursor: currentPage === totalPages ? "not-allowed" : "pointer",
-                    fontSize: "12px"
-                  }}
-                >
-                  Berikutnya →
-                </button>
-              </div>
-            </div>
-          )}
+              ))}
+            </tbody>
+          </table>
         </div>
 
       </div>
