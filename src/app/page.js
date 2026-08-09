@@ -120,7 +120,7 @@ export default function Home() {
     return undefined;
   };
 
-  const generateAggregations = (list) => {
+  const generateAggregations = useCallback((list) => {
     const layananMap = {};
     const jabatanMap = {};
 
@@ -142,7 +142,7 @@ export default function Home() {
 
     setDataLayanan(Object.values(layananMap));
     setDataJabatan(Object.values(jabatanMap));
-  };
+  }, []);
 
   const processExcelData = useCallback((rows) => {
     const rincianList = [];
@@ -163,8 +163,8 @@ export default function Home() {
         "Petugas_Terakhir", 
         "Nama_Jabatan", 
         "Jabatan", 
-        "Petugas",
-        "Petugas Ukur"
+        "Petugas Ukur",
+        "Petugas"
       ]);
 
       let fullNoBerkas = formatValue(nomor);
@@ -175,11 +175,12 @@ export default function Home() {
       let cleanedKegiatan = formatValue(rawKegiatan);
       let cleanedPosisi = formatValue(rawPosisi);
 
-      if (
-        cleanedPosisi.toLowerCase() === "pengukuran dan pemetaan kadastral" ||
-        cleanedPosisi.toLowerCase() === "pengukuran dan pemetaan kadastral"
-      ) {
-        cleanedPosisi = "-";
+      // Koreksi Otomatis Typo "Pemetan" menjadi "Pemetaan"
+      if (cleanedKegiatan.includes("Pemetan")) {
+        cleanedKegiatan = cleanedKegiatan.replace(/Pemetan/g, "Pemetaan");
+      }
+      if (cleanedPosisi.includes("Pemetan")) {
+        cleanedPosisi = cleanedPosisi.replace(/Pemetan/g, "Pemetaan");
       }
 
       if (fullNoBerkas !== "-") {
@@ -202,13 +203,15 @@ export default function Home() {
     setDataRincian(rincianList);
     generateAggregations(rincianList);
     setCurrentPage(1);
-  }, []);
+  }, [generateAggregations]);
 
   const processAndSetData = useCallback((rawJsonData, sourceName) => {
     if (!Array.isArray(rawJsonData) || rawJsonData.length === 0) return;
 
     setFileName(sourceName);
-    localStorage.setItem("atr_bpn_file_name", sourceName);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("atr_bpn_file_name", sourceName);
+    }
 
     processExcelData(rawJsonData);
   }, [processExcelData]);
