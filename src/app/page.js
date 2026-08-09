@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import * as XLSX from "xlsx";
 import {
   Chart as ChartJS,
@@ -12,6 +13,13 @@ import {
   Legend,
 } from "chart.js";
 import { Bar } from "react-chartjs-2";
+import "leaflet/dist/leaflet.css";
+
+// Dynamic Import untuk Leaflet GIS (mencegah error Server-Side Rendering di Next.js)
+const MapContainer = dynamic(() => import("react-leaflet").then((m) => m.MapContainer), { ssr: false });
+const TileLayer = dynamic(() => import("react-leaflet").then((m) => m.TileLayer), { ssr: false });
+const CircleMarker = dynamic(() => import("react-leaflet").then((m) => m.CircleMarker), { ssr: false });
+const Popup = dynamic(() => import("react-leaflet").then((m) => m.Popup), { ssr: false });
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -24,11 +32,9 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("semua");
 
-  // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Format Jam Indonesia saat ini
   const formatCurrentTimestamp = () => {
     return `${new Date().toLocaleString("id-ID", {
       dateStyle: "medium",
@@ -36,7 +42,6 @@ export default function Home() {
     })} WIB`;
   };
 
-  // Helper Formatting & Parsing Tanggal
   const parseDate = (val) => {
     if (!val) return null;
     if (val instanceof Date && !isNaN(val)) {
@@ -77,7 +82,6 @@ export default function Home() {
       const date = new Date(Math.round((val - 25569) * 86400 * 1000));
       return date.toLocaleDateString("id-ID");
     }
-    // Bersihkan spasi ganda dan trim
     return String(val).replace(/\s+/g, " ").trim();
   };
 
@@ -126,7 +130,6 @@ export default function Home() {
     const jabatanMap = {};
 
     list.forEach((item) => {
-      // Agregasi Layanan
       const lay = item.namaKegiatan !== "-" ? item.namaKegiatan.trim() : "Layanan Lainnya";
       if (!layananMap[lay]) layananMap[lay] = { kategori: lay, jumlah: 0, sesuai: 0, hampir: 0, sudah: 0 };
       layananMap[lay].jumlah += 1;
@@ -134,7 +137,6 @@ export default function Home() {
       else if (item.status === "YELLOW") layananMap[lay].hampir += 1;
       else if (item.status === "RED") layananMap[lay].sudah += 1;
 
-      // Agregasi Jabatan/Petugas dengan Trim
       const jab = item.jabatan !== "-" ? item.jabatan.trim() : "Petugas / Posisi Lain";
       if (!jabatanMap[jab]) jabatanMap[jab] = { kategori: jab, jumlah: 0, sesuai: 0, hampir: 0, sudah: 0 };
       jabatanMap[jab].jumlah += 1;
@@ -157,10 +159,7 @@ export default function Home() {
       const jatuhtempo = getFieldValue(row, ["Jatuh_Tempo", "Jatuhtempo", "Tempo"]);
       const tglSelesai = getFieldValue(row, ["Tanggal_Selesai", "Tgl_Selesai", "Selesai"]);
       const tglDiserahkan = getFieldValue(row, ["Tanggal_Diserahkan", "Tgl_Diserahkan", "Dikirim"]);
-      
       const rawKegiatan = getFieldValue(row, ["Nama_Kegiatan", "Nama_Layanan", "Kegiatan", "Layanan"]);
-      
-      // Mengutamakan pencarian Nama_Petugas / Petugas_Ukur terlebih dahulu sebelum Posisi_Terakhir
       const rawPosisi = getFieldValue(row, [
         "Petugas_Ukur",
         "PetugasUkur",
@@ -173,6 +172,10 @@ export default function Home() {
         "Posisi_Berkas"
       ]);
 
+      // Ekstraksi Atribut Koordinat GIS (jika ada di Excel/JSON)
+      const latVal = parseFloat(getFieldValue(row, ["Latitude", "Lat", "Y"]) || 0);
+      const lngVal = parseFloat(getFieldValue(row, ["Longitude", "Lng", "Long", "X"]) || 0);
+
       let fullNoBerkas = formatValue(nomor);
       if (tahun && String(nomor) !== "-" && String(tahun) !== "-") {
         fullNoBerkas = `${nomor}/${tahun}`;
@@ -181,13 +184,8 @@ export default function Home() {
       let cleanedKegiatan = formatValue(rawKegiatan);
       let cleanedPosisi = formatValue(rawPosisi);
 
-      // Koreksi Otomatis Typo "Pemetan" menjadi "Pemetaan"
-      if (cleanedKegiatan.includes("Pemetan")) {
-        cleanedKegiatan = cleanedKegiatan.replace(/Pemetan/g, "Pemetaan");
-      }
-      if (cleanedPosisi.includes("Pemetan")) {
-        cleanedPosisi = cleanedPosisi.replace(/Pemetan/g, "Pemetaan");
-      }
+      if (cleanedKegiatan.includes("Pemetan")) cleanedKegiatan = cleanedKegiatan.replace(/Pemetan/g, "Pemetaan");
+      if (cleanedPosisi.includes("Pemetan")) cleanedPosisi = cleanedPosisi.replace(/Pemetan/g, "Pemetaan");
 
       if (fullNoBerkas !== "-") {
         const computedStatus = calculateStatus(jatuhtempo, tglSelesai);
@@ -202,6 +200,9 @@ export default function Home() {
           namaPemohon: formatValue(getFieldValue(row, ["Nama_Pemohon", "Pemohon"])),
           status: computedStatus,
           jabatan: cleanedPosisi,
+          // Koordinat Geospasial
+          lat: !isNaN(latVal) && latVal !== 0 ? latVal : null,
+          lng: !isNaN(lngVal) && lngVal !== 0 ? lngVal : null,
         });
       }
     });
@@ -222,7 +223,6 @@ export default function Home() {
     processExcelData(rawJsonData);
   }, [processExcelData]);
 
-  // AUTO-LOAD WEB DATA PADA INITIAL RENDER & REFRESH
   useEffect(() => {
     const fetchDataAuto = async () => {
       const savedFileName = localStorage.getItem("atr_bpn_file_name");
@@ -232,7 +232,7 @@ export default function Home() {
       if (savedFileName) setFileName(savedFileName);
 
       try {
-        const res = await fetch(`/api/ingest?t=${Date.now()}`); // Bypass HTTP Cache
+        const res = await fetch(`/api/ingest?t=${Date.now()}`);
         const result = await res.json();
         
         if (result.success && result.data && result.data.length > 0) {
@@ -251,7 +251,6 @@ export default function Home() {
     fetchDataAuto();
   }, [processAndSetData]);
 
-  // UPLOAD FILE MANUAL (EXCEL / JSON)
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -289,7 +288,6 @@ export default function Home() {
     }
   };
 
-  // Metrics KPI
   const totalBerkas = dataRincian.length;
   const totalSesuai = dataRincian.filter((i) => i.status === "GREEN").length;
   const totalHampir = dataRincian.filter((i) => i.status === "YELLOW").length;
@@ -299,7 +297,6 @@ export default function Home() {
   const pctHampir = totalBerkas > 0 ? Math.round((totalHampir / totalBerkas) * 100) : 0;
   const pctSudah = totalBerkas > 0 ? Math.round((totalSudah / totalBerkas) * 100) : 0;
 
-  // Filtered & Paginated Table Data
   const filteredRincian = useMemo(() => {
     return dataRincian.filter((item) => {
       let matchesFilter = true;
@@ -318,13 +315,17 @@ export default function Home() {
     });
   }, [dataRincian, selectedFilter, searchQuery]);
 
+  // Data lokasi yang memiliki koordinat valid untuk Peta GIS
+  const mapLocations = useMemo(() => {
+    return filteredRincian.filter((item) => item.lat && item.lng);
+  }, [filteredRincian]);
+
   const totalPages = Math.ceil(filteredRincian.length / itemsPerPage) || 1;
   const paginatedRincian = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return filteredRincian.slice(start, start + itemsPerPage);
   }, [filteredRincian, currentPage]);
 
-  // Chart Layanan
   const chartDataLayanan = {
     labels: dataLayanan.map((item) => item.kategori),
     datasets: [
@@ -347,7 +348,6 @@ export default function Home() {
     },
   };
 
-  // Chart Bottleneck Posisi Terakhir (Diperluas hingga 10 posisi agar Petugas Ukur muncul)
   const topRedJabatan = useMemo(() => {
     return [...dataJabatan]
       .filter((j) => j.sudah > 0)
@@ -401,7 +401,6 @@ export default function Home() {
     <div style={{ minHeight: "100vh", backgroundColor: "#f1f5f9", padding: "32px 20px", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
       <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
         
-        {/* CSS Cetak Multi-Halaman */}
         <style jsx global>{`
           @media print {
             body, html { 
@@ -447,7 +446,7 @@ export default function Home() {
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
               <div style={{ display: "inline-block", backgroundColor: "#1e293b", color: "#38bdf8", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: "600" }}>
-                Sistem Informasi Pertanahan
+                Sistem Informasi Geospasial & Pertanahan (GIS)
               </div>
               {lastUpdated && (
                 <div style={{ fontSize: "11px", color: "#94a3b8", display: "flex", alignItems: "center", gap: "4px" }}>
@@ -497,7 +496,6 @@ export default function Home() {
 
         {/* Card KPI Metrics */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "20px", marginBottom: "28px" }}>
-          
           <div 
             onClick={() => { setSelectedFilter("semua"); setCurrentPage(1); }}
             className="card-box"
@@ -570,13 +568,64 @@ export default function Home() {
             </div>
             <p style={{ margin: "6px 0 0 0", fontSize: "12px", color: "#64748b" }}>{pctSudah}% melebihi jatuh tempo</p>
           </div>
-
         </div>
 
-        {/* Visualisasi Grafik */}
+        {/* --- KOMPONEN PETA INTERAKTIF GIS --- */}
+        <div className="card-box print-container" style={{ backgroundColor: "white", padding: "24px", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0", marginBottom: "28px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "10px" }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: "16px", color: "#0f172a", fontWeight: "700" }}>🗺️ Peta Sebaran Geospasial Berkas Pertanahan (GIS)</h3>
+              <p style={{ margin: "4px 0 0 0", fontSize: "12px", color: "#64748b" }}>
+                Menampilkan {mapLocations.length} lokasi titik berkas berdasarkan filter aktif
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: "12px", fontSize: "12px", fontWeight: "600" }}>
+              <span style={{ color: "#10b981", display: "flex", alignItems: "center", gap: "4px" }}>🟢 Aman ({mapLocations.filter(m => m.status === 'GREEN').length})</span>
+              <span style={{ color: "#f59e0b", display: "flex", alignItems: "center", gap: "4px" }}>🟡 Hari H ({mapLocations.filter(m => m.status === 'YELLOW').length})</span>
+              <span style={{ color: "#ef4444", display: "flex", alignItems: "center", gap: "4px" }}>🔴 Terlambat ({mapLocations.filter(m => m.status === 'RED').length})</span>
+            </div>
+          </div>
+
+          <div style={{ height: "420px", width: "100%", borderRadius: "12px", overflow: "hidden", border: "1px solid #cbd5e1" }}>
+            {typeof window !== "undefined" && (
+              <MapContainer 
+                center={[-2.238, 111.625]} 
+                zoom={10} 
+                style={{ height: "100%", width: "100%" }}
+              >
+                <TileLayer
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                />
+                {mapLocations.map((item, idx) => {
+                  const color = item.status === "GREEN" ? "#10b981" : item.status === "YELLOW" ? "#f59e0b" : "#ef4444";
+                  return (
+                    <CircleMarker
+                      key={idx}
+                      center={[item.lat, item.lng]}
+                      radius={8}
+                      pathOptions={{ fillColor: color, color: "#ffffff", weight: 2, fillOpacity: 0.85 }}
+                    >
+                      <Popup>
+                        <div style={{ fontFamily: "sans-serif", fontSize: "12px", color: "#1e293b" }}>
+                          <strong style={{ fontSize: "13px", color: "#2563eb" }}>No Berkas: {item.noBerkas}</strong><br />
+                          <b>Pemohon:</b> {item.namaPemohon}<br />
+                          <b>Kegiatan:</b> {item.namaKegiatan}<br />
+                          <b>Posisi:</b> {item.jabatan}<br />
+                          <b>Status:</b> <span style={{ color, fontWeight: "bold" }}>{item.status}</span>
+                        </div>
+                      </Popup>
+                    </CircleMarker>
+                  );
+                })}
+              </MapContainer>
+            )}
+          </div>
+        </div>
+
+        {/* Visualisasi Grafik Chart */}
         {dataLayanan.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: topRedJabatan.length > 0 ? "2fr 1fr" : "1fr", gap: "20px", marginBottom: "28px" }}>
-            
             <div className="card-box" style={{ backgroundColor: "white", padding: "24px", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
               <h3 style={{ margin: "0 0 16px 0", fontSize: "15px", color: "#0f172a", fontWeight: "700" }}>📊 Grafik Status per Jenis Layanan</h3>
               <div style={{ height: "300px" }}>
@@ -593,15 +642,12 @@ export default function Home() {
                 </div>
               </div>
             )}
-
           </div>
         )}
 
         {/* Tabel Data */}
         <div className="card-box print-container" style={{ backgroundColor: "white", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
-          
           <div className="no-print" style={{ padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px", borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
-            
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               {[
                 { id: "semua", label: "Semua Berkas" },
@@ -698,7 +744,6 @@ export default function Home() {
             </table>
           </div>
 
-          {/* Navigasi Pagination */}
           {filteredRincian.length > itemsPerPage && (
             <div className="no-print" style={{ padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
               <span style={{ fontSize: "12px", color: "#64748b" }}>
@@ -741,7 +786,6 @@ export default function Home() {
               </div>
             </div>
           )}
-
         </div>
 
       </div>
