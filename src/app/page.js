@@ -77,7 +77,8 @@ export default function Home() {
       const date = new Date(Math.round((val - 25569) * 86400 * 1000));
       return date.toLocaleDateString("id-ID");
     }
-    return String(val).trim();
+    // Bersihkan spasi ganda dan trim
+    return String(val).replace(/\s+/g, " ").trim();
   };
 
   const calculateStatus = (jatuhtempoVal, tglSelesaiVal) => {
@@ -125,14 +126,16 @@ export default function Home() {
     const jabatanMap = {};
 
     list.forEach((item) => {
-      const lay = item.namaKegiatan !== "-" ? item.namaKegiatan : "Layanan Lainnya";
+      // Agregasi Layanan
+      const lay = item.namaKegiatan !== "-" ? item.namaKegiatan.trim() : "Layanan Lainnya";
       if (!layananMap[lay]) layananMap[lay] = { kategori: lay, jumlah: 0, sesuai: 0, hampir: 0, sudah: 0 };
       layananMap[lay].jumlah += 1;
       if (item.status === "GREEN") layananMap[lay].sesuai += 1;
       else if (item.status === "YELLOW") layananMap[lay].hampir += 1;
       else if (item.status === "RED") layananMap[lay].sudah += 1;
 
-      const jab = item.jabatan !== "-" ? item.jabatan : "Petugas / Posisi Lain";
+      // Agregasi Jabatan/Petugas dengan Trim
+      const jab = item.jabatan !== "-" ? item.jabatan.trim() : "Petugas / Posisi Lain";
       if (!jabatanMap[jab]) jabatanMap[jab] = { kategori: jab, jumlah: 0, sesuai: 0, hampir: 0, sudah: 0 };
       jabatanMap[jab].jumlah += 1;
       if (item.status === "GREEN") jabatanMap[jab].sesuai += 1;
@@ -156,15 +159,18 @@ export default function Home() {
       const tglDiserahkan = getFieldValue(row, ["Tanggal_Diserahkan", "Tgl_Diserahkan", "Dikirim"]);
       
       const rawKegiatan = getFieldValue(row, ["Nama_Kegiatan", "Nama_Layanan", "Kegiatan", "Layanan"]);
+      
+      // Mengutamakan pencarian Nama_Petugas / Petugas_Ukur terlebih dahulu sebelum Posisi_Terakhir
       const rawPosisi = getFieldValue(row, [
+        "Petugas_Ukur",
+        "PetugasUkur",
+        "Nama_Petugas",
+        "Petugas_Terakhir",
+        "Nama_Jabatan",
+        "Jabatan",
+        "Petugas",
         "Posisi_Terakhir", 
-        "Posisi_Berkas", 
-        "Nama_Petugas", 
-        "Petugas_Terakhir", 
-        "Nama_Jabatan", 
-        "Jabatan", 
-        "Petugas Ukur",
-        "Petugas"
+        "Posisi_Berkas"
       ]);
 
       let fullNoBerkas = formatValue(nomor);
@@ -232,7 +238,6 @@ export default function Home() {
         if (result.success && result.data && result.data.length > 0) {
           processAndSetData(result.data, savedFileName || "Auto-Sync Web ATR/BPN");
 
-          // Update timestamp jika server menyajikan lastUpdated
           if (result.lastUpdated) {
             setLastUpdated(result.lastUpdated);
             localStorage.setItem("atr_bpn_last_updated", result.lastUpdated);
@@ -342,12 +347,12 @@ export default function Home() {
     },
   };
 
-  // Chart Bottleneck Posisi Terakhir
+  // Chart Bottleneck Posisi Terakhir (Diperluas hingga 10 posisi agar Petugas Ukur muncul)
   const topRedJabatan = useMemo(() => {
     return [...dataJabatan]
       .filter((j) => j.sudah > 0)
       .sort((a, b) => b.sudah - a.sudah)
-      .slice(0, 5);
+      .slice(0, 10);
   }, [dataJabatan]);
 
   const chartDataJabatan = {
@@ -651,7 +656,7 @@ export default function Home() {
                   <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Tgl Selesai</th>
                   <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Nama Kegiatan</th>
                   <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Nama Pemohon</th>
-                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Posisi Terakhir</th>
+                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Posisi Terakhir / Petugas</th>
                   <th style={{ padding: "14px 16px", textAlign: "center", color: "#1e3a8a", fontWeight: "700" }}>Status</th>
                 </tr>
               </thead>
