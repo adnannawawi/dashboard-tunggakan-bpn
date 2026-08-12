@@ -243,32 +243,46 @@ export default function Home() {
     processExcelData(rawJsonData);
   }, [processExcelData]);
 
+  // --- INTEGRASI SSE REAL-TIME ---
   useEffect(() => {
-    const fetchDataAuto = async () => {
-      const savedFileName = localStorage.getItem("atr_bpn_file_name");
-      const savedTimestamp = localStorage.getItem("atr_bpn_last_updated");
+    const savedFileName = localStorage.getItem("atr_bpn_file_name");
+    const savedTimestamp = localStorage.getItem("atr_bpn_last_updated");
 
-      if (savedTimestamp) setLastUpdated(savedTimestamp);
-      if (savedFileName) setFileName(savedFileName);
+    if (savedTimestamp) setLastUpdated(savedTimestamp);
+    if (savedFileName) setFileName(savedFileName);
 
+    // Buka saluran streaming Server-Sent Events ke API backend
+    const eventSource = new EventSource("/api/stream");
+
+    eventSource.onmessage = (event) => {
       try {
-        const res = await fetch(`/api/ingest?t=${Date.now()}`);
-        const result = await res.json();
-        
-        if (result.success && result.data && result.data.length > 0) {
-          processAndSetData(result.data, savedFileName || "Auto-Sync Web ATR/BPN");
+        const result = JSON.parse(event.data);
 
-          if (result.lastUpdated) {
-            setLastUpdated(result.lastUpdated);
-            localStorage.setItem("atr_bpn_last_updated", result.lastUpdated);
+        if (result && (Array.isArray(result) || result.data)) {
+          const rawData = Array.isArray(result) ? result : result.data;
+
+          if (rawData && rawData.length > 0) {
+            processAndSetData(rawData, savedFileName || "Auto-Sync Realtime Web ATR/BPN");
+
+            const newTime = result.lastUpdated || formatCurrentTimestamp();
+            setLastUpdated(newTime);
+            localStorage.setItem("atr_bpn_last_updated", newTime);
           }
         }
       } catch (err) {
-        console.error("Gagal mengambil data otomatis:", err);
+        console.error("Gagal memproses stream SSE:", err);
       }
     };
 
-    fetchDataAuto();
+    eventSource.onerror = (err) => {
+      console.error("Koneksi SSE terputus/error:", err);
+      eventSource.close();
+    };
+
+    // Bersihkan koneksi SSE saat komponen unmount
+    return () => {
+      eventSource.close();
+    };
   }, [processAndSetData]);
 
   const handleFileUpload = (e) => {
