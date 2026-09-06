@@ -1,43 +1,84 @@
 // src/app/api/stream/route.js
 
-export const dynamic = 'force-dynamic'; // Mencegah Next.js melakukan caching pada endpoint ini
+let latestData = [];
+let clients = [];
 
-export async function GET(request) {
-  const encoder = new TextEncoder();
+// Header CORS agar diizinkan oleh domain ATR/BPN
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
 
+// 1. Handle Preflight Request (Sangat penting untuk mengatasi CORS error)
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 200,
+    headers: corsHeaders,
+  });
+}
+
+// 2. SSE Stream Get
+export async function GET() {
   const stream = new ReadableStream({
     start(controller) {
-      // Kirim event pertama saat koneksi terbentuk
-      controller.enqueue(
-        encoder.encode(`data: ${JSON.stringify({ message: "Connected to SSE stream" })}\n\n`)
-      );
+      clients.push(controller);
 
-      // Simulasi ping/interval kirim data pembaruan tiap 5 detik
-      const interval = setInterval(() => {
-        const payload = {
-          timestamp: new Date().toISOString(),
-          // Anda bisa memanggil database/cache di sini untuk cek status terbaru
-          status: "active"
-        };
+      if (latestData.length > 0) {
+        const initialPayload = `data: ${JSON.stringify({ data: latestData })}\n\n`;
+        controller.enqueue(new TextEncoder().encode(initialPayload));
+      }
 
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify(payload)}\n\n`)
-        );
-      }, 5000);
-
-      // Hentikan interval jika koneksi terputus dari sisi client
-      request.signal.addEventListener('abort', () => {
-        clearInterval(interval);
-        controller.close();
-      });
-    }
+      return () => {
+        clients = clients.filter((c) => c !== controller);
+      };
+    },
   });
 
   return new Response(stream, {
     headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      'Connection': 'keep-alive',
+      ...corsHeaders,
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
     },
   });
+}
+
+// 3. Receive Data via POST
+export async function POST(req) {
+  try {
+    const body = await req.json();
+    const dataArray = Array.isArray(body) ? body : body.data || [];
+
+    if (dataArray.length > 0) {
+      latestData = dataArray;
+
+      const payload = `data: ${JSON.stringify({
+        data: latestData,
+        lastUpdated: new Date().toLocaleString("id-ID")
+      })}\n\n`;
+
+      clients.forEach((client) => {
+        try {
+          client.enqueue(new TextEncoder().encode(payload));
+        } catch (e) {}
+      });
+
+      return Response.json(
+        { success: true, count: latestData.length },
+        { headers: corsHeaders }
+      );
+    }
+
+    return Response.json(
+      { success: false, message: "Data kosong" },
+      { status: 400, headers: corsHeaders }
+    );
+  } catch (error) {
+    return Response.json(
+      { success: false, error: error.message },
+      { status: 500, headers: corsHeaders }
+    );
+  }
 }
