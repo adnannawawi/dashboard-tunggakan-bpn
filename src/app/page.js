@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { flushSync } from "react-dom";
 import dynamic from "next/dynamic";
 import * as XLSX from "xlsx";
 import {
@@ -36,11 +35,10 @@ export default function Home() {
   const [lastUpdated, setLastUpdated] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("semua");
-  const [basemap, setBasemap] = useState("osm");
+  const [basemap, setBasemap] = useState("osm"); // 'osm' | 'satellite'
 
-  // Pagination State & Mode Cetak
+  // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
-  const [isPrintingAll, setIsPrintingAll] = useState(false);
   const itemsPerPage = 10;
 
   // Format Jam Indonesia saat ini
@@ -184,6 +182,7 @@ export default function Home() {
         "Posisi_Berkas"
       ]);
 
+      // Parsing Koordinat Asli / Fallback Distribusi Geospasial
       let latVal = parseFloat(getFieldValue(row, ["Latitude", "Lat", "Y"]));
       let lngVal = parseFloat(getFieldValue(row, ["Longitude", "Lng", "Long", "X"]));
 
@@ -244,7 +243,7 @@ export default function Home() {
     processExcelData(rawJsonData);
   }, [processExcelData]);
 
-  // INTEGRASI SSE REAL-TIME
+  // --- INTEGRASI SSE REAL-TIME ---
   useEffect(() => {
     const savedFileName = localStorage.getItem("atr_bpn_file_name");
     const savedTimestamp = localStorage.getItem("atr_bpn_last_updated");
@@ -252,6 +251,7 @@ export default function Home() {
     if (savedTimestamp) setLastUpdated(savedTimestamp);
     if (savedFileName) setFileName(savedFileName);
 
+    // Buka saluran streaming Server-Sent Events ke API backend
     const eventSource = new EventSource("/api/stream");
 
     eventSource.onmessage = (event) => {
@@ -279,6 +279,7 @@ export default function Home() {
       eventSource.close();
     };
 
+    // Bersihkan koneksi SSE saat komponen unmount
     return () => {
       eventSource.close();
     };
@@ -349,30 +350,147 @@ export default function Home() {
     });
   }, [dataRincian, selectedFilter, searchQuery]);
 
-  const totalPages = Math.ceil(filteredRincian.length / itemsPerPage) || 1;
+  // FUNGSI CETAK SELURUH DATA TERFILTER
+  const handlePrintAll = () => {
+    if (filteredRincian.length === 0) {
+      alert("Tidak ada data untuk dicetak!");
+      return;
+    }
 
-  // Tampilkan seluruh data saat mode cetak aktif
-  const displayedRincian = useMemo(() => {
-    if (isPrintingAll) return filteredRincian;
+    const printWindow = window.open("", "_blank", "width=1200,height=800");
+    if (!printWindow) {
+      alert("Pop-up diblokir browser! Harap izinkan pop-up untuk mencetak.");
+      return;
+    }
+
+    const tableRowsHtml = filteredRincian
+      .map((row, idx) => {
+        let badgeColor = "#10b981";
+        let badgeBg = "#d1fae5";
+        if (row.status === "YELLOW") {
+          badgeColor = "#d97706";
+          badgeBg = "#fef3c7";
+        } else if (row.status === "RED") {
+          badgeColor = "#dc2626";
+          badgeBg = "#fee2e2";
+        }
+
+        return `
+          <tr style="border-bottom: 1px solid #e2e8f0; background-color: ${idx % 2 === 0 ? "#ffffff" : "#f8fafc"};">
+            <td style="padding: 8px 10px; text-align: center; color: #64748b; font-weight: 600;">${idx + 1}</td>
+            <td style="padding: 8px 10px; font-weight: 700; color: #1d4ed8;">${row.noBerkas}</td>
+            <td style="padding: 8px 10px;">${row.tglTerdaftar}</td>
+            <td style="padding: 8px 10px; font-weight: 600;">${row.jatuhtempo}</td>
+            <td style="padding: 8px 10px;">${row.tglSelesai}</td>
+            <td style="padding: 8px 10px;">${row.namaKegiatan}</td>
+            <td style="padding: 8px 10px; font-weight: 600; text-transform: uppercase;">${row.namaPemohon}</td>
+            <td style="padding: 8px 10px; color: #475569;">${row.jabatan}</td>
+            <td style="padding: 8px 10px; text-align: center;">
+              <span style="background-color: ${badgeBg}; color: ${badgeColor}; padding: 3px 8px; border-radius: 12px; font-size: 10px; font-weight: 700; display: inline-block;">
+                ${row.status}
+              </span>
+            </td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Cetak Laporan Tunggakan Berkas - ATR/BPN Kotawaringin Barat</title>
+          <style>
+            @page {
+              size: A4 landscape;
+              margin: 10mm;
+            }
+            body {
+              font-family: Arial, sans-serif;
+              font-size: 11px;
+              color: #0f172a;
+              margin: 0;
+              padding: 0;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 15px;
+              border-bottom: 2px solid #0f172a;
+              padding-bottom: 8px;
+            }
+            .header h2 {
+              margin: 0;
+              font-size: 16px;
+              text-transform: uppercase;
+            }
+            .header p {
+              margin: 3px 0 0 0;
+              color: #475569;
+              font-size: 11px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 10px;
+            }
+            th {
+              background-color: #f1f5f9;
+              color: #1e3a8a;
+              font-weight: 700;
+              text-transform: uppercase;
+              font-size: 10px;
+              padding: 8px 10px;
+              border-bottom: 2px solid #cbd5e1;
+            }
+            tr {
+              page-break-inside: avoid;
+            }
+            thead {
+              display: table-header-group;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h2>Dashboard Eksekutif Monitoring Tunggakan Berkas</h2>
+            <p>Kantor Pertanahan Kabupaten Kotawaringin Barat | Total Data Dicetak: ${filteredRincian.length} Berkas</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 30px;">#</th>
+                <th style="text-align: left;">Nomor Berkas</th>
+                <th style="text-align: left;">Tgl Terdaftar</th>
+                <th style="text-align: left;">Jatuh Tempo</th>
+                <th style="text-align: left;">Tgl Selesai</th>
+                <th style="text-align: left;">Nama Kegiatan</th>
+                <th style="text-align: left;">Nama Pemohon</th>
+                <th style="text-align: left;">Posisi Terakhir / Petugas</th>
+                <th style="text-align: center;">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRowsHtml}
+            </tbody>
+          </table>
+          <script>
+            window.onload = function() {
+              window.print();
+              window.close();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+  };
+
+  const totalPages = Math.ceil(filteredRincian.length / itemsPerPage) || 1;
+  const paginatedRincian = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return filteredRincian.slice(start, start + itemsPerPage);
-  }, [filteredRincian, currentPage, isPrintingAll]);
-
-  // FUNGSI UTAMA CETAK DENGAN FLUSH-SYNC & REQUEST-ANIMATION-FRAME
-  const handlePrintAll = () => {
-    // Paksa React merender seluruh baris ke DOM secara sync
-    flushSync(() => {
-      setIsPrintingAll(true);
-    });
-
-    // Tunggu 2 frame animasi agar browser selesai me-layout seluruh baris tabel
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        window.print();
-        setIsPrintingAll(false);
-      });
-    });
-  };
+  }, [filteredRincian, currentPage]);
 
   const chartDataLayanan = {
     labels: dataLayanan.map((item) => item.kategori),
@@ -448,6 +566,7 @@ export default function Home() {
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f1f5f9", padding: "32px 20px", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
       
+      {/* Import CSS Leaflet via CDN agar Map Tidak Rusak/Hilang */}
       <link
         rel="stylesheet"
         href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -457,47 +576,42 @@ export default function Home() {
 
       <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
         
-        {/* STYLESHEET PRINT KHUSUS */}
         <style jsx global>{`
           @media print {
-            .no-print {
-              display: none !important;
-            }
-            body, html {
-              background: white !important;
-              color: black !important;
-              padding: 0 !important;
+            body, html { 
+              background: white !important; 
+              padding: 0 !important; 
               margin: 0 !important;
               height: auto !important;
               overflow: visible !important;
             }
-            .print-container,
+            .no-print { display: none !important; }
+            .print-container { 
+              width: 100% !important; 
+              max-width: 100% !important; 
+              overflow: visible !important; 
+              position: static !important;
+            }
+            .card-box { 
+              box-shadow: none !important; 
+              border: 1px solid #cbd5e1 !important; 
+              overflow: visible !important;
+              page-break-inside: auto;
+            }
             .table-responsive-wrapper {
-              display: block !important;
               overflow: visible !important;
               height: auto !important;
-              max-height: none !important;
-              position: static !important;
-              box-shadow: none !important;
-              border: none !important;
             }
-            table {
+            table { 
+              page-break-inside: auto;
               width: 100% !important;
-              border-collapse: collapse !important;
-              page-break-inside: auto !important;
             }
-            tr {
-              page-break-inside: avoid !important;
-              page-break-after: auto !important;
+            tr { 
+              page-break-inside: avoid; 
+              page-break-after: auto;
             }
-            thead {
-              display: table-header-group !important;
-            }
-            .card-box {
-              box-shadow: none !important;
-              border: 1px solid #cbd5e1 !important;
-              margin-bottom: 16px !important;
-              page-break-inside: auto !important;
+            thead { 
+              display: table-header-group; 
             }
           }
         `}</style>
@@ -537,7 +651,7 @@ export default function Home() {
                 gap: "6px"
               }}
             >
-              🖨️ Cetak Semua Halaman ({filteredRincian.length} Data)
+              🖨️ Cetak Semua Berkas ({filteredRincian.length})
             </button>
 
             <div style={{ backgroundColor: "#1e293b", border: "1px solid #334155", padding: "10px 16px", borderRadius: "12px" }}>
@@ -631,7 +745,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* PANEL PETA GIS GEOTAS */}
+        {/* --- PANEL PETA GIS GEOTAS INTERAKTIF --- */}
         <div className="card-box" style={{ backgroundColor: "white", padding: "20px", borderRadius: "14px", border: "1px solid #e2e8f0", marginBottom: "28px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -639,6 +753,7 @@ export default function Home() {
               <h3 style={{ margin: 0, fontSize: "16px", color: "#0f172a", fontWeight: "700" }}>Peta Interaktif Sebaran Persil & Berkas Pertanahan (GEOTAS)</h3>
             </div>
 
+            {/* Control Switcher Basemap */}
             <div className="no-print" style={{ display: "flex", gap: "6px", backgroundColor: "#f1f5f9", padding: "4px", borderRadius: "8px", border: "1px solid #cbd5e1" }}>
               <button
                 onClick={() => setBasemap("osm")}
@@ -782,8 +897,8 @@ export default function Home() {
                 </tr>
               </thead>
               <tbody>
-                {displayedRincian.length > 0 ? (
-                  displayedRincian.map((row, idx) => (
+                {paginatedRincian.length > 0 ? (
+                  paginatedRincian.map((row, idx) => (
                     <tr 
                       key={idx} 
                       style={{ 
@@ -792,7 +907,7 @@ export default function Home() {
                       }}
                     >
                       <td style={{ padding: "12px 16px", textAlign: "center", color: "#94a3b8", fontWeight: "600" }}>
-                        {isPrintingAll ? idx + 1 : (currentPage - 1) * itemsPerPage + idx + 1}
+                        {(currentPage - 1) * itemsPerPage + idx + 1}
                       </td>
                       <td style={{ padding: "12px 16px", fontWeight: "700", color: "#1d4ed8" }}>{row.noBerkas}</td>
                       <td style={{ padding: "12px 16px" }}>{row.tglTerdaftar}</td>
@@ -819,49 +934,68 @@ export default function Home() {
             </table>
           </div>
 
-          {/* Navigasi Pagination */}
-          {filteredRincian.length > itemsPerPage && (
-            <div className="no-print" style={{ padding: "16px 24px", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px", alignItems: "center", borderTop: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
-              <span style={{ fontSize: "12px", color: "#64748b" }}>
-                Menampilkan {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredRincian.length)} dari {filteredRincian.length} berkas
-              </span>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <button
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage((p) => p - 1)}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: "6px",
-                    border: "1px solid #cbd5e1",
-                    backgroundColor: currentPage === 1 ? "#f1f5f9" : "white",
-                    color: currentPage === 1 ? "#94a3b8" : "#334155",
-                    cursor: currentPage === 1 ? "not-allowed" : "pointer",
-                    fontSize: "12px"
-                  }}
-                >
-                  ← Sebelumnya
-                </button>
-                <span style={{ padding: "6px 12px", fontSize: "12px", fontWeight: "600", color: "#1e293b" }}>
-                  Halaman {currentPage} dari {totalPages}
-                </span>
-                <button
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage((p) => p + 1)}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: "6px",
-                    border: "1px solid #cbd5e1",
-                    backgroundColor: currentPage === totalPages ? "#f1f5f9" : "white",
-                    color: currentPage === totalPages ? "#94a3b8" : "#334155",
-                    cursor: currentPage === totalPages ? "not-allowed" : "pointer",
-                    fontSize: "12px"
-                  }}
-                >
-                  Berikutnya →
-                </button>
-              </div>
+          {/* Navigasi Pagination & Cetak Lengkap */}
+          <div className="no-print" style={{ padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e2e8f0", backgroundColor: "#f8fafc", flexWrap: "wrap", gap: "12px" }}>
+            <span style={{ fontSize: "12px", color: "#64748b" }}>
+              Menampilkan {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredRincian.length)} dari {filteredRincian.length} berkas
+            </span>
+
+            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+              <button
+                onClick={handlePrintAll}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: "6px",
+                  border: "1px solid #0284c7",
+                  backgroundColor: "#e0f2fe",
+                  color: "#0369a1",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                  fontWeight: "600"
+                }}
+              >
+                🖨️ Cetak Seluruh Data ({filteredRincian.length})
+              </button>
+
+              {filteredRincian.length > itemsPerPage && (
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((p) => p - 1)}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: "6px",
+                      border: "1px solid #cbd5e1",
+                      backgroundColor: currentPage === 1 ? "#f1f5f9" : "white",
+                      color: currentPage === 1 ? "#94a3b8" : "#334155",
+                      cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                      fontSize: "12px"
+                    }}
+                  >
+                    ← Sebelumnya
+                  </button>
+                  <span style={{ padding: "6px 12px", fontSize: "12px", fontWeight: "600", color: "#1e293b" }}>
+                    Halaman {currentPage} dari {totalPages}
+                  </span>
+                  <button
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage((p) => p + 1)}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: "6px",
+                      border: "1px solid #cbd5e1",
+                      backgroundColor: currentPage === totalPages ? "#f1f5f9" : "white",
+                      color: currentPage === totalPages ? "#94a3b8" : "#334155",
+                      cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+                      fontSize: "12px"
+                    }}
+                  >
+                    Berikutnya →
+                  </button>
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
       </div>
