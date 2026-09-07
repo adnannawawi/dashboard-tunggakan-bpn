@@ -37,8 +37,9 @@ export default function Home() {
   const [selectedFilter, setSelectedFilter] = useState("semua");
   const [basemap, setBasemap] = useState("osm"); // 'osm' | 'satellite'
 
-  // Pagination State
+  // Pagination State & Mode Cetak
   const [currentPage, setCurrentPage] = useState(1);
+  const [isPrintingAll, setIsPrintingAll] = useState(false);
   const itemsPerPage = 10;
 
   // Format Jam Indonesia saat ini
@@ -182,7 +183,6 @@ export default function Home() {
         "Posisi_Berkas"
       ]);
 
-      // Parsing Koordinat Asli / Fallback Distribusi Geospasial
       let latVal = parseFloat(getFieldValue(row, ["Latitude", "Lat", "Y"]));
       let lngVal = parseFloat(getFieldValue(row, ["Longitude", "Lng", "Long", "X"]));
 
@@ -251,7 +251,6 @@ export default function Home() {
     if (savedTimestamp) setLastUpdated(savedTimestamp);
     if (savedFileName) setFileName(savedFileName);
 
-    // Buka saluran streaming Server-Sent Events ke API backend
     const eventSource = new EventSource("/api/stream");
 
     eventSource.onmessage = (event) => {
@@ -279,7 +278,6 @@ export default function Home() {
       eventSource.close();
     };
 
-    // Bersihkan koneksi SSE saat komponen unmount
     return () => {
       eventSource.close();
     };
@@ -351,10 +349,22 @@ export default function Home() {
   }, [dataRincian, selectedFilter, searchQuery]);
 
   const totalPages = Math.ceil(filteredRincian.length / itemsPerPage) || 1;
-  const paginatedRincian = useMemo(() => {
+  
+  // LOGIKA UTAMA: Tampilkan seluruh data saat mode cetak aktif
+  const displayedRincian = useMemo(() => {
+    if (isPrintingAll) return filteredRincian;
     const start = (currentPage - 1) * itemsPerPage;
     return filteredRincian.slice(start, start + itemsPerPage);
-  }, [filteredRincian, currentPage]);
+  }, [filteredRincian, currentPage, isPrintingAll]);
+
+  // FUNGSI UNTUK MENCETAK SELURUH HALAMAN
+  const handlePrintAll = () => {
+    setIsPrintingAll(true);
+    setTimeout(() => {
+      window.print();
+      setIsPrintingAll(false);
+    }, 300);
+  };
 
   const chartDataLayanan = {
     labels: dataLayanan.map((item) => item.kategori),
@@ -430,7 +440,6 @@ export default function Home() {
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f1f5f9", padding: "32px 20px", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
       
-      {/* Import CSS Leaflet via CDN agar Map Tidak Rusak/Hilang */}
       <link
         rel="stylesheet"
         href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -500,7 +509,7 @@ export default function Home() {
 
           <div className="no-print" style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
             <button
-              onClick={() => window.print()}
+              onClick={handlePrintAll}
               style={{
                 backgroundColor: "#2563eb",
                 color: "white",
@@ -515,7 +524,7 @@ export default function Home() {
                 gap: "6px"
               }}
             >
-              🖨️ Cetak Laporan PDF
+              🖨️ Cetak Semua Halaman ({filteredRincian.length} Data)
             </button>
 
             <div style={{ backgroundColor: "#1e293b", border: "1px solid #334155", padding: "10px 16px", borderRadius: "12px" }}>
@@ -609,7 +618,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* --- PANEL PETA GIS GEOTAS INTERAKTIF --- */}
+        {/* PANEL PETA GIS GEOTAS */}
         <div className="card-box" style={{ backgroundColor: "white", padding: "20px", borderRadius: "14px", border: "1px solid #e2e8f0", marginBottom: "28px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -617,7 +626,6 @@ export default function Home() {
               <h3 style={{ margin: 0, fontSize: "16px", color: "#0f172a", fontWeight: "700" }}>Peta Interaktif Sebaran Persil & Berkas Pertanahan (GEOTAS)</h3>
             </div>
 
-            {/* Control Switcher Basemap */}
             <div className="no-print" style={{ display: "flex", gap: "6px", backgroundColor: "#f1f5f9", padding: "4px", borderRadius: "8px", border: "1px solid #cbd5e1" }}>
               <button
                 onClick={() => setBasemap("osm")}
@@ -761,8 +769,8 @@ export default function Home() {
                 </tr>
               </thead>
               <tbody>
-                {paginatedRincian.length > 0 ? (
-                  paginatedRincian.map((row, idx) => (
+                {displayedRincian.length > 0 ? (
+                  displayedRincian.map((row, idx) => (
                     <tr 
                       key={idx} 
                       style={{ 
@@ -771,7 +779,7 @@ export default function Home() {
                       }}
                     >
                       <td style={{ padding: "12px 16px", textAlign: "center", color: "#94a3b8", fontWeight: "600" }}>
-                        {(currentPage - 1) * itemsPerPage + idx + 1}
+                        {isPrintingAll ? idx + 1 : (currentPage - 1) * itemsPerPage + idx + 1}
                       </td>
                       <td style={{ padding: "12px 16px", fontWeight: "700", color: "#1d4ed8" }}>{row.noBerkas}</td>
                       <td style={{ padding: "12px 16px" }}>{row.tglTerdaftar}</td>
@@ -800,7 +808,7 @@ export default function Home() {
 
           {/* Navigasi Pagination */}
           {filteredRincian.length > itemsPerPage && (
-            <div className="no-print" style={{ padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
+            <div className="no-print" style={{ padding: "16px 24px", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px", alignItems: "center", borderTop: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
               <span style={{ fontSize: "12px", color: "#64748b" }}>
                 Menampilkan {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredRincian.length)} dari {filteredRincian.length} berkas
               </span>
