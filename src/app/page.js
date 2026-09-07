@@ -346,14 +346,14 @@ export default function Home() {
     });
   }, [dataRincian, selectedFilter, searchQuery]);
 
-  // FUNGSI CETAK LAPORAN TERISOLASI
+  // FUNGSI CETAK LAPORAN LENGKAP SEMUA HALAMAN (PERBAIKAN UTAMA)
   const handlePrintAll = () => {
     if (filteredRincian.length === 0) {
       alert("Tidak ada data untuk dicetak!");
       return;
     }
 
-    const printWindow = window.open("", "_blank", "width=1200,height=800");
+    const printWindow = window.open("", "_blank");
     if (!printWindow) {
       alert("Pop-up diblokir browser! Harap izinkan pop-up untuk mencetak.");
       return;
@@ -372,17 +372,17 @@ export default function Home() {
         }
 
         return `
-          <tr style="border-bottom: 1px solid #e2e8f0; background-color: ${idx % 2 === 0 ? "#ffffff" : "#f8fafc"};">
-            <td style="padding: 8px 10px; text-align: center; color: #64748b; font-weight: 600;">${idx + 1}</td>
-            <td style="padding: 8px 10px; font-weight: 700; color: #1d4ed8;">${row.noBerkas}</td>
-            <td style="padding: 8px 10px;">${row.tglTerdaftar}</td>
-            <td style="padding: 8px 10px; font-weight: 600;">${row.jatuhtempo}</td>
-            <td style="padding: 8px 10px;">${row.tglSelesai}</td>
-            <td style="padding: 8px 10px;">${row.namaKegiatan}</td>
-            <td style="padding: 8px 10px; font-weight: 600; text-transform: uppercase;">${row.namaPemohon}</td>
-            <td style="padding: 8px 10px; color: #475569;">${row.jabatan}</td>
-            <td style="padding: 8px 10px; text-align: center;">
-              <span style="background-color: ${badgeBg}; color: ${badgeColor}; padding: 3px 8px; border-radius: 12px; font-size: 10px; font-weight: 700; display: inline-block;">
+          <tr style="border-bottom: 1px solid #e2e8f0; background-color: ${idx % 2 === 0 ? "#ffffff" : "#f8fafc"}; page-break-inside: avoid;">
+            <td style="padding: 6px 8px; text-align: center; color: #64748b; font-weight: 600;">${idx + 1}</td>
+            <td style="padding: 6px 8px; font-weight: 700; color: #1d4ed8;">${row.noBerkas}</td>
+            <td style="padding: 6px 8px;">${row.tglTerdaftar}</td>
+            <td style="padding: 6px 8px; font-weight: 600;">${row.jatuhtempo}</td>
+            <td style="padding: 6px 8px;">${row.tglSelesai}</td>
+            <td style="padding: 6px 8px;">${row.namaKegiatan}</td>
+            <td style="padding: 6px 8px; font-weight: 600; text-transform: uppercase;">${row.namaPemohon}</td>
+            <td style="padding: 6px 8px; color: #475569;">${row.jabatan}</td>
+            <td style="padding: 6px 8px; text-align: center;">
+              <span style="background-color: ${badgeBg}; color: ${badgeColor}; padding: 2px 6px; border-radius: 12px; font-size: 9px; font-weight: 700; display: inline-block;">
                 ${row.status}
               </span>
             </td>
@@ -399,47 +399,51 @@ export default function Home() {
           <style>
             @page {
               size: A4 landscape;
-              margin: 10mm;
+              margin: 8mm;
             }
-            body {
+            html, body {
+              height: auto !important;
+              overflow: visible !important;
               font-family: Arial, sans-serif;
-              font-size: 11px;
+              font-size: 10px;
               color: #0f172a;
               margin: 0;
               padding: 0;
             }
             .header {
               text-align: center;
-              margin-bottom: 15px;
+              margin-bottom: 12px;
               border-bottom: 2px solid #0f172a;
-              padding-bottom: 8px;
+              padding-bottom: 6px;
             }
             .header h2 {
               margin: 0;
-              font-size: 16px;
+              font-size: 15px;
               text-transform: uppercase;
             }
             .header p {
-              margin: 3px 0 0 0;
+              margin: 2px 0 0 0;
               color: #475569;
-              font-size: 11px;
+              font-size: 10px;
             }
             table {
               width: 100%;
               border-collapse: collapse;
-              margin-top: 10px;
+              margin-top: 8px;
             }
             th {
-              background-color: #f1f5f9;
+              background-color: #f1f5f9 !important;
               color: #1e3a8a;
               font-weight: 700;
               text-transform: uppercase;
-              font-size: 10px;
-              padding: 8px 10px;
+              font-size: 9px;
+              padding: 6px 8px;
               border-bottom: 2px solid #cbd5e1;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
             }
             tr {
-              page-break-inside: avoid;
+              page-break-inside: avoid !important;
             }
             thead {
               display: table-header-group;
@@ -454,7 +458,7 @@ export default function Home() {
           <table>
             <thead>
               <tr>
-                <th style="width: 30px;">#</th>
+                <th style="width: 25px;">#</th>
                 <th style="text-align: left;">Nomor Berkas</th>
                 <th style="text-align: left;">Tgl Terdaftar</th>
                 <th style="text-align: left;">Jatuh Tempo</th>
@@ -471,8 +475,10 @@ export default function Home() {
           </table>
           <script>
             window.onload = function() {
-              window.print();
-              window.close();
+              setTimeout(function() {
+                window.print();
+                window.close();
+              }, 300);
             };
           </script>
         </body>
@@ -562,6 +568,21 @@ export default function Home() {
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f1f5f9", padding: "32px 20px", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
       
+      {/* CSS Khusus agar Pencetakan Langsung Browser Membuka Seluruh Tinggi Halaman */}
+      <style jsx global>{`
+        @media print {
+          html, body, div, main, section, table {
+            height: auto !important;
+            min-height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+          }
+          button, input, .no-print {
+            display: none !important;
+          }
+        }
+      `}</style>
+
       <link
         rel="stylesheet"
         href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -606,7 +627,7 @@ export default function Home() {
                 gap: "6px"
               }}
             >
-              🖨️ Cetak Laporan ({filteredRincian.length})
+              🖨️ Cetak Laporan PDF ({filteredRincian.length})
             </button>
 
             <div style={{ backgroundColor: "#1e293b", border: "1px solid #334155", padding: "10px 16px", borderRadius: "12px" }}>
@@ -904,7 +925,7 @@ export default function Home() {
                   fontWeight: "600"
                 }}
               >
-                🖨️ Cetak Seluruh Data ({filteredRincian.length})
+                🖨️ Cetak Seluruh Data PDF ({filteredRincian.length})
               </button>
 
               {filteredRincian.length > itemsPerPage && (
