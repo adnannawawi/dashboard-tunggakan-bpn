@@ -243,7 +243,7 @@ export default function Home() {
     processExcelData(rawJsonData);
   }, [processExcelData]);
 
-  // --- INTEGRASI SSE REAL-TIME ---
+  // INTEGRASI SSE REAL-TIME
   useEffect(() => {
     const savedFileName = localStorage.getItem("atr_bpn_file_name");
     const savedTimestamp = localStorage.getItem("atr_bpn_last_updated");
@@ -350,21 +350,29 @@ export default function Home() {
 
   const totalPages = Math.ceil(filteredRincian.length / itemsPerPage) || 1;
   
-  // LOGIKA UTAMA: Tampilkan seluruh data saat mode cetak aktif
+  // Tampilkan seluruh data saat mode cetak aktif
   const displayedRincian = useMemo(() => {
     if (isPrintingAll) return filteredRincian;
     const start = (currentPage - 1) * itemsPerPage;
     return filteredRincian.slice(start, start + itemsPerPage);
   }, [filteredRincian, currentPage, isPrintingAll]);
 
-  // FUNGSI UNTUK MENCETAK SELURUH HALAMAN
+  // FUNGSI UNTUK MENGUBAH STATE PENCETAKAN
   const handlePrintAll = () => {
     setIsPrintingAll(true);
-    setTimeout(() => {
-      window.print();
-      setIsPrintingAll(false);
-    }, 300);
   };
+
+  // EFEK PERBAIKAN: Panggil window.print() HANYA SETELAH DOM selesai di-render ulang sepenuhnya oleh React
+  useEffect(() => {
+    if (isPrintingAll) {
+      const timer = setTimeout(() => {
+        window.print();
+        setIsPrintingAll(false);
+      }, 500); // Memberikan jeda 500ms agar browser siap memuat seluruh baris data ke halaman cetak
+
+      return () => clearTimeout(timer);
+    }
+  }, [isPrintingAll]);
 
   const chartDataLayanan = {
     labels: dataLayanan.map((item) => item.kategori),
