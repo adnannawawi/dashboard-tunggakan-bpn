@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { flushSync } from "react-dom";
 import dynamic from "next/dynamic";
 import * as XLSX from "xlsx";
 import {
@@ -35,7 +36,7 @@ export default function Home() {
   const [lastUpdated, setLastUpdated] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("semua");
-  const [basemap, setBasemap] = useState("osm"); // 'osm' | 'satellite'
+  const [basemap, setBasemap] = useState("osm");
 
   // Pagination State & Mode Cetak
   const [currentPage, setCurrentPage] = useState(1);
@@ -357,21 +358,21 @@ export default function Home() {
     return filteredRincian.slice(start, start + itemsPerPage);
   }, [filteredRincian, currentPage, isPrintingAll]);
 
-  // FUNGSI UTAMA MENCETAK
+  // FUNGSI UTAMA CETAK DENGAN FLUSH-SYNC & REQUEST-ANIMATION-FRAME
   const handlePrintAll = () => {
-    setIsPrintingAll(true);
-  };
+    // Paksa React merender seluruh baris ke DOM secara sync
+    flushSync(() => {
+      setIsPrintingAll(true);
+    });
 
-  useEffect(() => {
-    if (isPrintingAll) {
-      const timer = setTimeout(() => {
+    // Tunggu 2 frame animasi agar browser selesai me-layout seluruh baris tabel
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
         window.print();
         setIsPrintingAll(false);
-      }, 600); // Jeda waktu ekstra agar browser menyelesaikan render tabel
-
-      return () => clearTimeout(timer);
-    }
-  }, [isPrintingAll]);
+      });
+    });
+  };
 
   const chartDataLayanan = {
     labels: dataLayanan.map((item) => item.kategori),
@@ -456,37 +457,29 @@ export default function Home() {
 
       <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
         
-        {/* CSS CETAK PERBAIKAN TOTAL */}
+        {/* STYLESHEET PRINT KHUSUS */}
         <style jsx global>{`
           @media print {
+            .no-print {
+              display: none !important;
+            }
             body, html {
               background: white !important;
+              color: black !important;
               padding: 0 !important;
               margin: 0 !important;
               height: auto !important;
               overflow: visible !important;
             }
-            .no-print {
-              display: none !important;
-            }
-            .print-container {
-              width: 100% !important;
-              max-width: 100% !important;
-              overflow: visible !important;
-              position: static !important;
-              box-shadow: none !important;
-              border: none !important;
-            }
-            .card-box {
-              box-shadow: none !important;
-              border: 1px solid #cbd5e1 !important;
-              overflow: visible !important;
-              page-break-inside: auto;
-            }
+            .print-container,
             .table-responsive-wrapper {
+              display: block !important;
               overflow: visible !important;
               height: auto !important;
               max-height: none !important;
+              position: static !important;
+              box-shadow: none !important;
+              border: none !important;
             }
             table {
               width: 100% !important;
@@ -499,6 +492,12 @@ export default function Home() {
             }
             thead {
               display: table-header-group !important;
+            }
+            .card-box {
+              box-shadow: none !important;
+              border: 1px solid #cbd5e1 !important;
+              margin-bottom: 16px !important;
+              page-break-inside: auto !important;
             }
           }
         `}</style>
