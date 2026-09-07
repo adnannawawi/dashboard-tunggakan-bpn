@@ -182,7 +182,6 @@ export default function Home() {
         "Posisi_Berkas"
       ]);
 
-      // Parsing Koordinat Asli / Fallback Distribusi Geospasial
       let latVal = parseFloat(getFieldValue(row, ["Latitude", "Lat", "Y"]));
       let lngVal = parseFloat(getFieldValue(row, ["Longitude", "Lng", "Long", "X"]));
 
@@ -243,7 +242,6 @@ export default function Home() {
     processExcelData(rawJsonData);
   }, [processExcelData]);
 
-  // --- INTEGRASI SSE REAL-TIME ---
   useEffect(() => {
     const savedFileName = localStorage.getItem("atr_bpn_file_name");
     const savedTimestamp = localStorage.getItem("atr_bpn_last_updated");
@@ -251,7 +249,6 @@ export default function Home() {
     if (savedTimestamp) setLastUpdated(savedTimestamp);
     if (savedFileName) setFileName(savedFileName);
 
-    // Buka saluran streaming Server-Sent Events ke API backend
     const eventSource = new EventSource("/api/stream");
 
     eventSource.onmessage = (event) => {
@@ -279,7 +276,6 @@ export default function Home() {
       eventSource.close();
     };
 
-    // Bersihkan koneksi SSE saat komponen unmount
     return () => {
       eventSource.close();
     };
@@ -350,7 +346,7 @@ export default function Home() {
     });
   }, [dataRincian, selectedFilter, searchQuery]);
 
-  // FUNGSI CETAK SELURUH DATA TERFILTER
+  // FUNGSI CETAK LAPORAN TERISOLASI
   const handlePrintAll = () => {
     if (filteredRincian.length === 0) {
       alert("Tidak ada data untuk dicetak!");
@@ -399,7 +395,7 @@ export default function Home() {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Cetak Laporan Tunggakan Berkas - ATR/BPN Kotawaringin Barat</title>
+          <title>Laporan Tunggakan Berkas - ATR/BPN Kotawaringin Barat</title>
           <style>
             @page {
               size: A4 landscape;
@@ -452,8 +448,8 @@ export default function Home() {
         </head>
         <body>
           <div class="header">
-            <h2>Dashboard Eksekutif Monitoring Tunggakan Berkas</h2>
-            <p>Kantor Pertanahan Kabupaten Kotawaringin Barat | Total Data Dicetak: ${filteredRincian.length} Berkas</p>
+            <h2>Laporan Monitoring Tunggakan Berkas Pertanahan</h2>
+            <p>Kantor Pertanahan Kabupaten Kotawaringin Barat | Total Data: ${filteredRincian.length} Berkas</p>
           </div>
           <table>
             <thead>
@@ -566,7 +562,6 @@ export default function Home() {
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f1f5f9", padding: "32px 20px", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
       
-      {/* Import CSS Leaflet via CDN agar Map Tidak Rusak/Hilang */}
       <link
         rel="stylesheet"
         href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -576,46 +571,6 @@ export default function Home() {
 
       <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
         
-        <style jsx global>{`
-          @media print {
-            body, html { 
-              background: white !important; 
-              padding: 0 !important; 
-              margin: 0 !important;
-              height: auto !important;
-              overflow: visible !important;
-            }
-            .no-print { display: none !important; }
-            .print-container { 
-              width: 100% !important; 
-              max-width: 100% !important; 
-              overflow: visible !important; 
-              position: static !important;
-            }
-            .card-box { 
-              box-shadow: none !important; 
-              border: 1px solid #cbd5e1 !important; 
-              overflow: visible !important;
-              page-break-inside: auto;
-            }
-            .table-responsive-wrapper {
-              overflow: visible !important;
-              height: auto !important;
-            }
-            table { 
-              page-break-inside: auto;
-              width: 100% !important;
-            }
-            tr { 
-              page-break-inside: avoid; 
-              page-break-after: auto;
-            }
-            thead { 
-              display: table-header-group; 
-            }
-          }
-        `}</style>
-
         {/* Header Dashboard */}
         <header style={{ marginBottom: "28px", backgroundColor: "#0f172a", color: "white", padding: "28px 32px", borderRadius: "16px", boxShadow: "0 10px 25px -5px rgba(15, 23, 42, 0.25)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "20px" }}>
           <div>
@@ -634,7 +589,7 @@ export default function Home() {
             <p style={{ margin: "4px 0 0 0", color: "#94a3b8", fontSize: "15px" }}>Kantor Pertanahan Kabupaten Kotawaringin Barat</p>
           </div>
 
-          <div className="no-print" style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
             <button
               onClick={handlePrintAll}
               style={{
@@ -651,7 +606,7 @@ export default function Home() {
                 gap: "6px"
               }}
             >
-              🖨️ Cetak Semua Berkas ({filteredRincian.length})
+              🖨️ Cetak Laporan ({filteredRincian.length})
             </button>
 
             <div style={{ backgroundColor: "#1e293b", border: "1px solid #334155", padding: "10px 16px", borderRadius: "12px" }}>
@@ -673,7 +628,6 @@ export default function Home() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "20px", marginBottom: "28px" }}>
           <div 
             onClick={() => { setSelectedFilter("semua"); setCurrentPage(1); }}
-            className="card-box"
             style={{ 
               backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "semua" ? "2px solid #2563eb" : "1px solid #e2e8f0",
               boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", cursor: "pointer"
@@ -689,7 +643,6 @@ export default function Home() {
 
           <div 
             onClick={() => { setSelectedFilter("sesuai"); setCurrentPage(1); }}
-            className="card-box"
             style={{ 
               backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "sesuai" ? "2px solid #10b981" : "1px solid #e2e8f0",
               boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", cursor: "pointer"
@@ -708,7 +661,6 @@ export default function Home() {
 
           <div 
             onClick={() => { setSelectedFilter("hampir"); setCurrentPage(1); }}
-            className="card-box"
             style={{ 
               backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "hampir" ? "2px solid #f59e0b" : "1px solid #e2e8f0",
               boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", cursor: "pointer"
@@ -727,7 +679,6 @@ export default function Home() {
 
           <div 
             onClick={() => { setSelectedFilter("sudah"); setCurrentPage(1); }}
-            className="card-box"
             style={{ 
               backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "sudah" ? "2px solid #ef4444" : "1px solid #e2e8f0",
               boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", cursor: "pointer"
@@ -745,16 +696,15 @@ export default function Home() {
           </div>
         </div>
 
-        {/* --- PANEL PETA GIS GEOTAS INTERAKTIF --- */}
-        <div className="card-box" style={{ backgroundColor: "white", padding: "20px", borderRadius: "14px", border: "1px solid #e2e8f0", marginBottom: "28px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" }}>
+        {/* Panel Peta GIS GEOTAS */}
+        <div style={{ backgroundColor: "white", padding: "20px", borderRadius: "14px", border: "1px solid #e2e8f0", marginBottom: "28px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <span style={{ fontSize: "18px" }}>🗺️</span>
               <h3 style={{ margin: 0, fontSize: "16px", color: "#0f172a", fontWeight: "700" }}>Peta Interaktif Sebaran Persil & Berkas Pertanahan (GEOTAS)</h3>
             </div>
 
-            {/* Control Switcher Basemap */}
-            <div className="no-print" style={{ display: "flex", gap: "6px", backgroundColor: "#f1f5f9", padding: "4px", borderRadius: "8px", border: "1px solid #cbd5e1" }}>
+            <div style={{ display: "flex", gap: "6px", backgroundColor: "#f1f5f9", padding: "4px", borderRadius: "8px", border: "1px solid #cbd5e1" }}>
               <button
                 onClick={() => setBasemap("osm")}
                 style={{
@@ -816,7 +766,7 @@ export default function Home() {
         {/* Visualisasi Grafik */}
         {dataLayanan.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: topRedJabatan.length > 0 ? "2fr 1fr" : "1fr", gap: "20px", marginBottom: "28px" }}>
-            <div className="card-box" style={{ backgroundColor: "white", padding: "24px", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
+            <div style={{ backgroundColor: "white", padding: "24px", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
               <h3 style={{ margin: "0 0 16px 0", fontSize: "15px", color: "#0f172a", fontWeight: "700" }}>📊 Grafik Status per Jenis Layanan</h3>
               <div style={{ height: "300px" }}>
                 <Bar data={chartDataLayanan} options={chartOptionsLayanan} />
@@ -824,7 +774,7 @@ export default function Home() {
             </div>
 
             {topRedJabatan.length > 0 && (
-              <div className="card-box" style={{ backgroundColor: "white", padding: "24px", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
+              <div style={{ backgroundColor: "white", padding: "24px", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
                 <h3 style={{ margin: "0 0 6px 0", fontSize: "15px", color: "#991b1b", fontWeight: "700" }}>⚠️ Top Bottleneck</h3>
                 <p style={{ margin: "0 0 16px 0", fontSize: "12px", color: "#64748b" }}>Petugas dengan berkas RED terbanyak</p>
                 <div style={{ height: "240px" }}>
@@ -836,8 +786,8 @@ export default function Home() {
         )}
 
         {/* Tabel Data */}
-        <div className="card-box print-container" style={{ backgroundColor: "white", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
-          <div className="no-print" style={{ padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px", borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
+        <div style={{ backgroundColor: "white", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
+          <div style={{ padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px", borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               {[
                 { id: "semua", label: "Semua Berkas" },
@@ -881,7 +831,7 @@ export default function Home() {
             />
           </div>
 
-          <div className="table-responsive-wrapper">
+          <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", color: "#334155" }}>
               <thead>
                 <tr style={{ backgroundColor: "#f1f5f9", borderBottom: "1px solid #cbd5e1", textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.5px" }}>
@@ -934,8 +884,8 @@ export default function Home() {
             </table>
           </div>
 
-          {/* Navigasi Pagination & Cetak Lengkap */}
-          <div className="no-print" style={{ padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e2e8f0", backgroundColor: "#f8fafc", flexWrap: "wrap", gap: "12px" }}>
+          {/* Navigasi Pagination */}
+          <div style={{ padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e2e8f0", backgroundColor: "#f8fafc", flexWrap: "wrap", gap: "12px" }}>
             <span style={{ fontSize: "12px", color: "#64748b" }}>
               Menampilkan {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredRincian.length)} dari {filteredRincian.length} berkas
             </span>
