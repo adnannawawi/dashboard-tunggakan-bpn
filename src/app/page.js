@@ -349,7 +349,7 @@ export default function Home() {
   }, [dataRincian, selectedFilter, searchQuery]);
 
   const totalPages = Math.ceil(filteredRincian.length / itemsPerPage) || 1;
-  
+
   // Tampilkan seluruh data saat mode cetak aktif
   const displayedRincian = useMemo(() => {
     if (isPrintingAll) return filteredRincian;
@@ -357,18 +357,17 @@ export default function Home() {
     return filteredRincian.slice(start, start + itemsPerPage);
   }, [filteredRincian, currentPage, isPrintingAll]);
 
-  // FUNGSI UNTUK MENGUBAH STATE PENCETAKAN
+  // FUNGSI UTAMA MENCETAK
   const handlePrintAll = () => {
     setIsPrintingAll(true);
   };
 
-  // EFEK PERBAIKAN: Panggil window.print() HANYA SETELAH DOM selesai di-render ulang sepenuhnya oleh React
   useEffect(() => {
     if (isPrintingAll) {
       const timer = setTimeout(() => {
         window.print();
         setIsPrintingAll(false);
-      }, 500); // Memberikan jeda 500ms agar browser siap memuat seluruh baris data ke halaman cetak
+      }, 600); // Jeda waktu ekstra agar browser menyelesaikan render tabel
 
       return () => clearTimeout(timer);
     }
@@ -457,42 +456,49 @@ export default function Home() {
 
       <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
         
+        {/* CSS CETAK PERBAIKAN TOTAL */}
         <style jsx global>{`
           @media print {
-            body, html { 
-              background: white !important; 
-              padding: 0 !important; 
+            body, html {
+              background: white !important;
+              padding: 0 !important;
               margin: 0 !important;
               height: auto !important;
               overflow: visible !important;
             }
-            .no-print { display: none !important; }
-            .print-container { 
-              width: 100% !important; 
-              max-width: 100% !important; 
-              overflow: visible !important; 
-              position: static !important;
+            .no-print {
+              display: none !important;
             }
-            .card-box { 
-              box-shadow: none !important; 
-              border: 1px solid #cbd5e1 !important; 
+            .print-container {
+              width: 100% !important;
+              max-width: 100% !important;
+              overflow: visible !important;
+              position: static !important;
+              box-shadow: none !important;
+              border: none !important;
+            }
+            .card-box {
+              box-shadow: none !important;
+              border: 1px solid #cbd5e1 !important;
               overflow: visible !important;
               page-break-inside: auto;
             }
             .table-responsive-wrapper {
               overflow: visible !important;
               height: auto !important;
+              max-height: none !important;
             }
-            table { 
-              page-break-inside: auto;
+            table {
               width: 100% !important;
+              border-collapse: collapse !important;
+              page-break-inside: auto !important;
             }
-            tr { 
-              page-break-inside: avoid; 
-              page-break-after: auto;
+            tr {
+              page-break-inside: avoid !important;
+              page-break-after: auto !important;
             }
-            thead { 
-              display: table-header-group; 
+            thead {
+              display: table-header-group !important;
             }
           }
         `}</style>
