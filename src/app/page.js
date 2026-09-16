@@ -37,6 +37,10 @@ export default function Home() {
   const [selectedFilter, setSelectedFilter] = useState("semua");
   const [basemap, setBasemap] = useState("osm"); // 'osm' | 'satellite'
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
   // Format Jam Indonesia saat ini
   const formatCurrentTimestamp = () => {
     return `${new Date().toLocaleString("id-ID", {
@@ -225,6 +229,7 @@ export default function Home() {
 
     setDataRincian(rincianList);
     generateAggregations(rincianList);
+    setCurrentPage(1);
   }, [generateAggregations]);
 
   const processAndSetData = useCallback((rawJsonData, sourceName) => {
@@ -246,6 +251,7 @@ export default function Home() {
     if (savedTimestamp) setLastUpdated(savedTimestamp);
     if (savedFileName) setFileName(savedFileName);
 
+    // Buka saluran streaming Server-Sent Events ke API backend
     const eventSource = new EventSource("/api/stream");
 
     eventSource.onmessage = (event) => {
@@ -273,6 +279,7 @@ export default function Home() {
       eventSource.close();
     };
 
+    // Bersihkan koneksi SSE saat komponen unmount
     return () => {
       eventSource.close();
     };
@@ -342,6 +349,12 @@ export default function Home() {
       return matchesFilter && matchesSearch;
     });
   }, [dataRincian, selectedFilter, searchQuery]);
+
+  const totalPages = Math.ceil(filteredRincian.length / itemsPerPage) || 1;
+  const paginatedRincian = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredRincian.slice(start, start + itemsPerPage);
+  }, [filteredRincian, currentPage]);
 
   const chartDataLayanan = {
     labels: dataLayanan.map((item) => item.kategori),
@@ -523,7 +536,7 @@ export default function Home() {
         {/* Card KPI Metrics */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "20px", marginBottom: "28px" }}>
           <div 
-            onClick={() => setSelectedFilter("semua")}
+            onClick={() => { setSelectedFilter("semua"); setCurrentPage(1); }}
             className="card-box"
             style={{ 
               backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "semua" ? "2px solid #2563eb" : "1px solid #e2e8f0",
@@ -539,7 +552,7 @@ export default function Home() {
           </div>
 
           <div 
-            onClick={() => setSelectedFilter("sesuai")}
+            onClick={() => { setSelectedFilter("sesuai"); setCurrentPage(1); }}
             className="card-box"
             style={{ 
               backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "sesuai" ? "2px solid #10b981" : "1px solid #e2e8f0",
@@ -558,7 +571,7 @@ export default function Home() {
           </div>
 
           <div 
-            onClick={() => setSelectedFilter("hampir")}
+            onClick={() => { setSelectedFilter("hampir"); setCurrentPage(1); }}
             className="card-box"
             style={{ 
               backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "hampir" ? "2px solid #f59e0b" : "1px solid #e2e8f0",
@@ -577,7 +590,7 @@ export default function Home() {
           </div>
 
           <div 
-            onClick={() => setSelectedFilter("sudah")}
+            onClick={() => { setSelectedFilter("sudah"); setCurrentPage(1); }}
             className="card-box"
             style={{ 
               backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "sudah" ? "2px solid #ef4444" : "1px solid #e2e8f0",
@@ -698,7 +711,7 @@ export default function Home() {
               ].map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setSelectedFilter(tab.id)}
+                  onClick={() => { setSelectedFilter(tab.id); setCurrentPage(1); }}
                   style={{
                     padding: "6px 14px",
                     borderRadius: "8px",
@@ -720,7 +733,7 @@ export default function Home() {
               type="text"
               placeholder="🔍 Cari No Berkas, Pemohon, Layanan, Posisi..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
               style={{
                 padding: "8px 14px",
                 border: "1px solid #cbd5e1",
@@ -748,8 +761,8 @@ export default function Home() {
                 </tr>
               </thead>
               <tbody>
-                {filteredRincian.length > 0 ? (
-                  filteredRincian.map((row, idx) => (
+                {paginatedRincian.length > 0 ? (
+                  paginatedRincian.map((row, idx) => (
                     <tr 
                       key={idx} 
                       style={{ 
@@ -758,7 +771,7 @@ export default function Home() {
                       }}
                     >
                       <td style={{ padding: "12px 16px", textAlign: "center", color: "#94a3b8", fontWeight: "600" }}>
-                        {idx + 1}
+                        {(currentPage - 1) * itemsPerPage + idx + 1}
                       </td>
                       <td style={{ padding: "12px 16px", fontWeight: "700", color: "#1d4ed8" }}>{row.noBerkas}</td>
                       <td style={{ padding: "12px 16px" }}>{row.tglTerdaftar}</td>
@@ -785,12 +798,49 @@ export default function Home() {
             </table>
           </div>
 
-          {/* Footer Info Total Data */}
-          <div className="no-print" style={{ padding: "16px 24px", borderTop: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
-            <span style={{ fontSize: "12px", color: "#64748b", fontWeight: "500" }}>
-              Total Menampilkan: <strong>{filteredRincian.length}</strong> berkas
-            </span>
-          </div>
+          {/* Navigasi Pagination */}
+          {filteredRincian.length > itemsPerPage && (
+            <div className="no-print" style={{ padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
+              <span style={{ fontSize: "12px", color: "#64748b" }}>
+                Menampilkan {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredRincian.length)} dari {filteredRincian.length} berkas
+              </span>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => p - 1)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "6px",
+                    border: "1px solid #cbd5e1",
+                    backgroundColor: currentPage === 1 ? "#f1f5f9" : "white",
+                    color: currentPage === 1 ? "#94a3b8" : "#334155",
+                    cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                    fontSize: "12px"
+                  }}
+                >
+                  ← Sebelumnya
+                </button>
+                <span style={{ padding: "6px 12px", fontSize: "12px", fontWeight: "600", color: "#1e293b" }}>
+                  Halaman {currentPage} dari {totalPages}
+                </span>
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "6px",
+                    border: "1px solid #cbd5e1",
+                    backgroundColor: currentPage === totalPages ? "#f1f5f9" : "white",
+                    color: currentPage === totalPages ? "#94a3b8" : "#334155",
+                    cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+                    fontSize: "12px"
+                  }}
+                >
+                  Berikutnya →
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
       </div>
