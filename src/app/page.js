@@ -2,25 +2,12 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
-import * as XLSX from "xlsx";
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-} from "chart.js";
-import { Bar } from "react-chartjs-2";
 
-// Peta dimuat secara dinamis khusus client-side
+// Peta dan Chart dimuat secara dinamis murni di client-side untuk mencegah error SSR Next.js
 const Map = dynamic(() => import("../component/Map"), {
   ssr: false,
   loading: () => <div style={{ padding: "20px", textAlign: "center", color: "#64748b" }}>Memuat Peta GEOTAS...</div>,
 });
-
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 const CENTER_LAT = -2.6833;
 const CENTER_LNG = 111.6167;
@@ -47,13 +34,6 @@ export default function Home() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-
-  const formatCurrentTimestamp = () => {
-    return `${new Date().toLocaleString("id-ID", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    })} WIB`;
-  };
 
   const parseDate = (val) => {
     if (!val) return null;
@@ -228,7 +208,6 @@ export default function Home() {
     if (savedTimestamp) setLastUpdated(savedTimestamp);
     if (savedFileName) setFileName(savedFileName);
 
-    // Dummy data default agar chart dan tabel langsung terisi aman saat pertama kali dibuka
     const dummyData = [
       { noBerkas: "123/2026", namaPemohon: "Budi Santoso", namaKegiatan: "Pengecekan Sertipikat", jabatan: "Loket", status: "GREEN", lat: CENTER_LAT, lng: CENTER_LNG, isPrioritas: true },
       { noBerkas: "124/2026", namaPemohon: "Siti Aminah", namaKegiatan: "Hak Tanggungan", jabatan: "Pemeriksa", status: "YELLOW", lat: CENTER_LAT + 0.01, lng: CENTER_LNG + 0.01, isPrioritas: true },
@@ -265,26 +244,6 @@ export default function Home() {
     const start = (currentPage - 1) * itemsPerPage;
     return filteredRincian.slice(start, start + itemsPerPage);
   }, [filteredRincian, currentPage]);
-
-  const chartDataLayanan = {
-    labels: dataLayanan.map((item) => item.kategori),
-    datasets: [
-      { label: "Aman (GREEN)", data: dataLayanan.map((item) => item.sesuai), backgroundColor: "#10b981", borderRadius: 4 },
-      { label: "Hari H (YELLOW)", data: dataLayanan.map((item) => item.hampir), backgroundColor: "#f59e0b", borderRadius: 4 },
-      { label: "Terlambat (RED)", data: dataLayanan.map((item) => item.sudah), backgroundColor: "#ef4444", borderRadius: 4 },
-    ],
-  };
-
-  const chartOptionsLayanan = {
-    indexAxis: "y",
-    responsive: true,
-    maintainAspectRatio: false,
-    scales: {
-      x: { stacked: true, grid: { color: "#f1f5f9" } },
-      y: { stacked: true, grid: { display: false } },
-    },
-    plugins: { legend: { position: "top" } },
-  };
 
   const getStatusBadge = (status) => {
     if (status === "GREEN") {
@@ -326,16 +285,6 @@ export default function Home() {
             <div style={{ fontSize: "24px", fontWeight: "700", color: "#ef4444" }}>{totalSudah}</div>
           </div>
         </div>
-
-        {/* Grafik Layanan */}
-        {dataLayanan.length > 0 && (
-          <div style={{ backgroundColor: "white", padding: "20px", borderRadius: "14px", border: "1px solid #e2e8f0", marginBottom: "28px", height: "350px" }}>
-            <h3 style={{ margin: "0 0 16px 0", fontSize: "16px", color: "#0f172a" }}>📊 Statistik Berkas Berdasarkan Layanan</h3>
-            <div style={{ height: "270px", position: "relative" }}>
-              <Bar data={chartDataLayanan} options={chartOptionsLayanan} />
-            </div>
-          </div>
-        )}
 
         {/* Panel Peta GIS GEOTAS */}
         <div style={{ backgroundColor: "white", padding: "20px", borderRadius: "14px", border: "1px solid #e2e8f0", marginBottom: "28px" }}>
