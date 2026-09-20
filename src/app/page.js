@@ -24,7 +24,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("semua");
 
-  // Pagination State (10 data per slide/halaman di layar)
+  // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -222,8 +222,12 @@ export default function Home() {
       const savedFileName = localStorage.getItem("atr_bpn_file_name");
       const savedTimestamp = localStorage.getItem("atr_bpn_last_updated");
 
-      if (savedTimestamp) setLastUpdated(savedTimestamp);
-      if (savedFileName) setFileName(savedFileName);
+      if (savedTimestamp) {
+        setLastUpdated(savedTimestamp);
+      }
+      if (savedFileName) {
+        setFileName(savedFileName);
+      }
 
       try {
         const res = await fetch(`/api/ingest?t=${Date.now()}`);
@@ -235,6 +239,11 @@ export default function Home() {
             savedFileName || "Data Realtime Sistem", 
             result.lastUpdated || savedTimestamp
           );
+
+          if (result.lastUpdated) {
+            setLastUpdated(result.lastUpdated);
+            localStorage.setItem("atr_bpn_last_updated", result.lastUpdated);
+          }
         }
       } catch (err) {
         console.error("Gagal mengambil data otomatis:", err);
@@ -274,7 +283,7 @@ export default function Home() {
           const dataArray = Array.isArray(parsedData) ? parsedData : parsedData.data || [];
           processAndSetData(dataArray, file.name, currentTimestamp);
         } catch (err) {
-          alert("Gagal membaca file JSON.");
+          alert("Gagal membaca file JSON. Pastikan format file benar.");
         }
       };
       reader.readAsText(file);
@@ -321,6 +330,20 @@ export default function Home() {
   }, [dataRincian, selectedFilter, searchQuery]);
 
   const totalPages = Math.ceil(filteredRincian.length / itemsPerPage) || 1;
+  
+  // Memecah seluruh data yang terfilter menjadi kumpulan blok halaman (masing-masing 10 baris) khusus saat mencetak
+  const printablePagesData = useMemo(() => {
+    const chunks = [];
+    for (let i = 0; i < filteredRincian.length; i += itemsPerPage) {
+      chunks.push(filteredRincian.slice(i, i + itemsPerPage));
+    }
+    return chunks.length > 0 ? chunks : [[]];
+  }, [filteredRincian, itemsPerPage]);
+
+  const paginatedRincian = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredRincian.slice(start, start + itemsPerPage);
+  }, [filteredRincian, currentPage]);
 
   const chartDataLayanan = {
     labels: dataLayanan.map((item) => item.kategori),
@@ -339,47 +362,68 @@ export default function Home() {
       x: { stacked: true, grid: { color: "#f1f5f9" } },
       y: { stacked: true, grid: { display: false } },
     },
-    plugins: { legend: { position: "top" } },
+    plugins: {
+      legend: { position: "top" },
+    },
   };
 
   const topRedJabatan = useMemo(() => {
-    return [...dataJabatan].filter((j) => j.sudah > 0).sort((a, b) => b.sudah - a.sudah).slice(0, 5);
+    return [...dataJabatan]
+      .filter((j) => j.sudah > 0)
+      .sort((a, b) => b.sudah - a.sudah)
+      .slice(0, 5);
   }, [dataJabatan]);
 
   const chartDataJabatan = {
     labels: topRedJabatan.map((item) => item.kategori),
-    datasets: [{ label: "Berkas Terlambat", data: topRedJabatan.map((item) => item.sudah), backgroundColor: "#dc2626", borderRadius: 4 }],
+    datasets: [
+      { label: "Berkas Terlambat (RED)", data: topRedJabatan.map((item) => item.sudah), backgroundColor: "#dc2626", borderRadius: 4 },
+    ],
   };
 
   const chartOptionsJabatan = {
     indexAxis: "y",
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: { x: { grid: { color: "#f1f5f9" } }, y: { grid: { display: false } } },
+    plugins: {
+      legend: { display: false },
+    },
+    scales: {
+      x: { grid: { color: "#f1f5f9" } },
+      y: { grid: { display: false } },
+    },
   };
 
   const getStatusBadge = (status) => {
-    if (status === "GREEN") return <span style={{ backgroundColor: "#d1fae5", color: "#065f46", padding: "4px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "700" }}>GREEN</span>;
-    if (status === "YELLOW") return <span style={{ backgroundColor: "#fef3c7", color: "#92400e", padding: "4px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "700" }}>YELLOW</span>;
-    return <span style={{ backgroundColor: "#fee2e2", color: "#991b1b", padding: "4px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "700" }}>RED</span>;
+    if (status === "GREEN") {
+      return (
+        <span style={{ backgroundColor: "#d1fae5", color: "#065f46", border: "1px solid #a7f3d0", padding: "4px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "700", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+          <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#10b981" }}></span> GREEN
+        </span>
+      );
+    }
+    if (status === "YELLOW") {
+      return (
+        <span style={{ backgroundColor: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "4px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "700", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+          <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#f59e0b" }}></span> YELLOW
+        </span>
+      );
+    }
+    return (
+      <span style={{ backgroundColor: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5", padding: "4px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "700", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+        <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#ef4444" }}></span> RED
+      </span>
+    );
   };
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#f1f5f9", padding: "32px 20px", fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ minHeight: "100vh", backgroundColor: "#f1f5f9", padding: "32px 20px", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
       <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
         
-        {/* CSS GLOBAL: Layar menampilkan 10 data, Cetak PDF menampilkan SEMUA baris tanpa terpotong */}
         <style jsx global>{`
-          @page {
-            size: A4 landscape;
-            margin: 15mm;
-          }
-
-          @media screen {
-            .hide-on-screen {
-              display: none !important;
-            }
+          /* Sembunyikan elemen cetak khusus saat mode layar biasa */
+          .print-only-section {
+            display: none;
           }
 
           @media print {
@@ -387,20 +431,38 @@ export default function Home() {
               background: white !important; 
               padding: 0 !important; 
               margin: 0 !important;
+              height: auto !important;
+              overflow: visible !important;
             }
             .no-print { display: none !important; }
-            .print-container { 
-              width: 100% !important; 
-              max-width: 100% !important; 
-              box-shadow: none !important;
-              border: none !important;
+            
+            /* Tampilkan tabel perulangan khusus cetak */
+            .screen-only-section { display: none !important; }
+            .print-only-section { display: block !important; }
+
+            .print-page-container {
+              page-break-after: always;
+              break-after: page;
+              page-break-inside: avoid;
+              height: 100vh;
+              box-sizing: border-box;
+              display: flex;
+              flex-direction: column;
+              justify-content: flex-start;
             }
-            .hide-on-screen {
-              display: table-row !important;
+
+            .print-page-container:last-child {
+              page-break-after: auto;
+              break-after: auto;
+            }
+
+            .card-box { 
+              box-shadow: none !important; 
+              border: 1px solid #cbd5e1 !important; 
+              overflow: visible !important;
             }
             table { 
-              width: 100% !important;
-              border-collapse: collapse !important;
+              width: 100% !important; 
             }
             tr { 
               page-break-inside: avoid; 
@@ -413,152 +475,299 @@ export default function Home() {
         `}</style>
 
         {/* Header Dashboard */}
-        <header style={{ marginBottom: "28px", backgroundColor: "#0f172a", color: "white", padding: "28px 32px", borderRadius: "16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "20px" }}>
+        <header className="no-print" style={{ marginBottom: "28px", backgroundColor: "#0f172a", color: "white", padding: "28px 32px", borderRadius: "16px", boxShadow: "0 10px 25px -5px rgba(15, 23, 42, 0.25)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "20px" }}>
           <div>
-            <div style={{ display: "inline-block", backgroundColor: "#1e293b", color: "#38bdf8", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: "600", marginBottom: "8px" }}>
-              Sistem Informasi Pertanahan
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+              <div style={{ display: "inline-block", backgroundColor: "#1e293b", color: "#38bdf8", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: "600" }}>
+                Sistem Informasi Pertanahan
+              </div>
+              {lastUpdated && (
+                <div style={{ fontSize: "11px", color: "#94a3b8", display: "flex", alignItems: "center", gap: "4px" }}>
+                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#10b981", display: "inline-block" }}></span>
+                  Last Update: {lastUpdated}
+                </div>
+              )}
             </div>
-            <h1 style={{ margin: 0, fontSize: "24px", fontWeight: "700" }}>Dashboard Eksekutif Monitoring Tunggakan Berkas</h1>
+            <h1 style={{ margin: 0, fontSize: "24px", fontWeight: "700", letterSpacing: "-0.5px" }}>Dashboard Eksekutif Monitoring Tunggakan Berkas</h1>
             <p style={{ margin: "4px 0 0 0", color: "#94a3b8", fontSize: "15px" }}>Kantor Pertanahan Kabupaten Kotawaringin Barat</p>
           </div>
 
-          <div className="no-print" style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
             <button
               onClick={() => window.print()}
-              style={{ backgroundColor: "#2563eb", color: "white", border: "none", padding: "10px 16px", borderRadius: "10px", fontSize: "13px", fontWeight: "600", cursor: "pointer" }}
+              style={{
+                backgroundColor: "#2563eb",
+                color: "white",
+                border: "none",
+                padding: "10px 16px",
+                borderRadius: "10px",
+                fontSize: "13px",
+                fontWeight: "600",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px"
+              }}
             >
               🖨️ Cetak Laporan PDF
             </button>
+
             <div style={{ backgroundColor: "#1e293b", border: "1px solid #334155", padding: "10px 16px", borderRadius: "12px" }}>
-              <label style={{ display: "block", fontSize: "11px", color: "#cbd5e1", marginBottom: "4px" }}>📤 Upload Excel / JSON</label>
+              <label style={{ display: "block", fontSize: "11px", color: "#cbd5e1", marginBottom: "4px", fontWeight: "600" }}>
+                📤 Upload Excel / JSON (Back Office)
+              </label>
               <input type="file" accept=".xlsx, .xls, .json" onChange={handleFileUpload} style={{ fontSize: "11px", color: "#94a3b8" }} />
+              {fileName && (
+                <div style={{ margin: "4px 0 0 0", fontSize: "11px", color: "#38bdf8", fontWeight: "500" }}>
+                  <p style={{ margin: 0 }}>✓ File dimuat: {fileName}</p>
+                  {lastUpdated && <p style={{ margin: "2px 0 0 0", color: "#94a3b8", fontSize: "10px" }}>🕒 Sync: {lastUpdated}</p>}
+                </div>
+              )}
             </div>
           </div>
         </header>
 
         {/* Card KPI Metrics */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "20px", marginBottom: "28px" }}>
-          <div onClick={() => { setSelectedFilter("semua"); setCurrentPage(1); }} style={{ backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "semua" ? "2px solid #2563eb" : "1px solid #e2e8f0", cursor: "pointer" }}>
-            <span style={{ fontSize: "13px", color: "#64748b", fontWeight: "600" }}>Total Berkas</span>
-            <h2 style={{ margin: "10px 0 0 0", fontSize: "32px", fontWeight: "800", color: "#0f172a" }}>{totalBerkas}</h2>
+        <div className="no-print" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "20px", marginBottom: "28px" }}>
+          
+          <div 
+            onClick={() => { setSelectedFilter("semua"); setCurrentPage(1); }}
+            className="card-box"
+            style={{ 
+              backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "semua" ? "2px solid #2563eb" : "1px solid #e2e8f0",
+              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", cursor: "pointer"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", color: "#64748b", fontSize: "13px", fontWeight: "600" }}>
+              <span>Total Berkas</span>
+              <span>📦</span>
+            </div>
+            <h2 style={{ margin: "10px 0 8px 0", fontSize: "32px", fontWeight: "800", color: "#0f172a" }}>{totalBerkas}</h2>
+            <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>Semua berkas yang terdata</p>
           </div>
-          <div onClick={() => { setSelectedFilter("sesuai"); setCurrentPage(1); }} style={{ backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "sesuai" ? "2px solid #10b981" : "1px solid #e2e8f0", cursor: "pointer" }}>
-            <span style={{ fontSize: "13px", color: "#047857", fontWeight: "600" }}>GREEN (Aman)</span>
-            <h2 style={{ margin: "10px 0 0 0", fontSize: "32px", fontWeight: "800", color: "#059669" }}>{totalSesuai}</h2>
+
+          <div 
+            onClick={() => { setSelectedFilter("sesuai"); setCurrentPage(1); }}
+            className="card-box"
+            style={{ 
+              backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "sesuai" ? "2px solid #10b981" : "1px solid #e2e8f0",
+              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", cursor: "pointer"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", color: "#047857", fontSize: "13px", fontWeight: "600" }}>
+              <span>Belum Jatuh Tempo (GREEN)</span>
+              <span>🟢</span>
+            </div>
+            <h2 style={{ margin: "10px 0 8px 0", fontSize: "32px", fontWeight: "800", color: "#059669" }}>{totalSesuai}</h2>
+            <div style={{ width: "100%", backgroundColor: "#e2e8f0", height: "6px", borderRadius: "3px", overflow: "hidden" }}>
+              <div style={{ width: `${pctSesuai}%`, backgroundColor: "#10b981", height: "100%" }}></div>
+            </div>
+            <p style={{ margin: "6px 0 0 0", fontSize: "12px", color: "#64748b" }}>{pctSesuai}% dari total berkas</p>
           </div>
-          <div onClick={() => { setSelectedFilter("hampir"); setCurrentPage(1); }} style={{ backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "hampir" ? "2px solid #f59e0b" : "1px solid #e2e8f0", cursor: "pointer" }}>
-            <span style={{ fontSize: "13px", color: "#b45309", fontWeight: "600" }}>YELLOW (Hari H)</span>
-            <h2 style={{ margin: "10px 0 0 0", fontSize: "32px", fontWeight: "800", color: "#d97706" }}>{totalHampir}</h2>
+
+          <div 
+            onClick={() => { setSelectedFilter("hampir"); setCurrentPage(1); }}
+            className="card-box"
+            style={{ 
+              backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "hampir" ? "2px solid #f59e0b" : "1px solid #e2e8f0",
+              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", cursor: "pointer"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", color: "#b45309", fontSize: "13px", fontWeight: "600" }}>
+              <span>Hampir Jatuh Tempo (YELLOW)</span>
+              <span>🟡</span>
+            </div>
+            <h2 style={{ margin: "10px 0 8px 0", fontSize: "32px", fontWeight: "800", color: "#d97706" }}>{totalHampir}</h2>
+            <div style={{ width: "100%", backgroundColor: "#e2e8f0", height: "6px", borderRadius: "3px", overflow: "hidden" }}>
+              <div style={{ width: `${pctHampir}%`, backgroundColor: "#f59e0b", height: "100%" }}></div>
+            </div>
+            <p style={{ margin: "6px 0 0 0", fontSize: "12px", color: "#64748b" }}>{pctHampir}% jatuh tempo hari ini</p>
           </div>
-          <div onClick={() => { setSelectedFilter("sudah"); setCurrentPage(1); }} style={{ backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "sudah" ? "2px solid #ef4444" : "1px solid #e2e8f0", cursor: "pointer" }}>
-            <span style={{ fontSize: "13px", color: "#b91c1c", fontWeight: "600" }}>RED (Terlambat)</span>
-            <h2 style={{ margin: "10px 0 0 0", fontSize: "32px", fontWeight: "800", color: "#dc2626" }}>{totalSudah}</h2>
+
+          <div 
+            onClick={() => { setSelectedFilter("sudah"); setCurrentPage(1); }}
+            className="card-box"
+            style={{ 
+              backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "sudah" ? "2px solid #ef4444" : "1px solid #e2e8f0",
+              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", cursor: "pointer"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", color: "#b91c1c", fontSize: "13px", fontWeight: "600" }}>
+              <span>Terlambat (RED)</span>
+              <span>🔴</span>
+            </div>
+            <h2 style={{ margin: "10px 0 8px 0", fontSize: "32px", fontWeight: "800", color: "#dc2626" }}>{totalSudah}</h2>
+            <div style={{ width: "100%", backgroundColor: "#e2e8f0", height: "6px", borderRadius: "3px", overflow: "hidden" }}>
+              <div style={{ width: `${pctSudah}%`, backgroundColor: "#ef4444", height: "100%" }}></div>
+            </div>
+            <p style={{ margin: "6px 0 0 0", fontSize: "12px", color: "#64748b" }}>{pctSudah}% melebihi jatuh tempo</p>
           </div>
+
         </div>
 
-        {/* Grafik */}
+        {/* Visualisasi Grafik */}
         {dataLayanan.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: topRedJabatan.length > 0 ? "2fr 1fr" : "1fr", gap: "20px", marginBottom: "28px" }}>
-            <div style={{ backgroundColor: "white", padding: "24px", borderRadius: "14px", border: "1px solid #e2e8f0" }}>
+          <div className="no-print" style={{ display: "grid", gridTemplateColumns: topRedJabatan.length > 0 ? "2fr 1fr" : "1fr", gap: "20px", marginBottom: "28px" }}>
+            
+            <div className="card-box" style={{ backgroundColor: "white", padding: "24px", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
               <h3 style={{ margin: "0 0 16px 0", fontSize: "15px", color: "#0f172a", fontWeight: "700" }}>📊 Grafik Status per Jenis Layanan</h3>
-              <div style={{ height: "300px" }}><Bar data={chartDataLayanan} options={chartOptionsLayanan} /></div>
+              <div style={{ height: "300px" }}>
+                <Bar data={chartDataLayanan} options={chartOptionsLayanan} />
+              </div>
             </div>
+
             {topRedJabatan.length > 0 && (
-              <div style={{ backgroundColor: "white", padding: "24px", borderRadius: "14px", border: "1px solid #e2e8f0" }}>
-                <h3 style={{ margin: "0 0 16px 0", fontSize: "15px", color: "#991b1b", fontWeight: "700" }}>⚠️ Top Bottleneck</h3>
-                <div style={{ height: "240px" }}><Bar data={chartDataJabatan} options={chartOptionsJabatan} /></div>
+              <div className="card-box" style={{ backgroundColor: "white", padding: "24px", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
+                <h3 style={{ margin: "0 0 6px 0", fontSize: "15px", color: "#991b1b", fontWeight: "700" }}>⚠️ Top Bottleneck</h3>
+                <p style={{ margin: "0 0 16px 0", fontSize: "12px", color: "#64748b" }}>Petugas dengan berkas RED terbanyak</p>
+                <div style={{ height: "240px" }}>
+                  <Bar data={chartDataJabatan} options={chartOptionsJabatan} />
+                </div>
               </div>
             )}
+
           </div>
         )}
 
-        {/* Tabel Data Utama */}
-        <div className="print-container" style={{ backgroundColor: "white", borderRadius: "14px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+        {/* 1. TAMPILAN LAYAR (INTERAKTIF NORMAL) */}
+        <div className="card-box screen-only-section" style={{ backgroundColor: "white", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
           
-          <div className="no-print" style={{ padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc", flexWrap: "wrap", gap: "12px" }}>
+          <div style={{ padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px", borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
+            
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              {["semua", "sesuai", "hampir", "sudah"].map((id) => (
+              {[
+                { id: "semua", label: "Semua Berkas" },
+                { id: "sesuai", label: "🟢 GREEN (Aman)" },
+                { id: "hampir", label: "🟡 YELLOW (Hari H)" },
+                { id: "sudah", label: "🔴 RED (Terlambat)" },
+              ].map((tab) => (
                 <button
-                  key={id}
-                  onClick={() => { setSelectedFilter(id); setCurrentPage(1); }}
+                  key={tab.id}
+                  onClick={() => { setSelectedFilter(tab.id); setCurrentPage(1); }}
                   style={{
-                    padding: "6px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: "600",
-                    border: "1px solid", borderColor: selectedFilter === id ? "#2563eb" : "#cbd5e1",
-                    backgroundColor: selectedFilter === id ? "#eff6ff" : "white", color: selectedFilter === id ? "#1d4ed8" : "#475569",
-                    cursor: "pointer", textTransform: "capitalize"
+                    padding: "6px 14px",
+                    borderRadius: "8px",
+                    fontSize: "12px",
+                    fontWeight: "600",
+                    border: "1px solid",
+                    borderColor: selectedFilter === tab.id ? "#2563eb" : "#cbd5e1",
+                    backgroundColor: selectedFilter === tab.id ? "#eff6ff" : "white",
+                    color: selectedFilter === tab.id ? "#1d4ed8" : "#475569",
+                    cursor: "pointer",
                   }}
                 >
-                  {id === "sesuai" ? "🟢 GREEN" : id === "hampir" ? "🟡 YELLOW" : id === "sudah" ? "🔴 RED" : "Semua Berkas"}
+                  {tab.label}
                 </button>
               ))}
             </div>
+
             <input
               type="text"
-              placeholder="🔍 Cari No Berkas, Pemohon..."
+              placeholder="🔍 Cari No Berkas, Pemohon, Layanan, Posisi..."
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              style={{ padding: "8px 14px", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "13px", minWidth: "250px" }}
+              style={{
+                padding: "8px 14px",
+                border: "1px solid #cbd5e1",
+                borderRadius: "8px",
+                fontSize: "13px",
+                minWidth: "280px",
+                outline: "none"
+              }}
             />
           </div>
 
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", color: "#334155" }}>
-            <thead>
-              <tr style={{ backgroundColor: "#f1f5f9", borderBottom: "1px solid #cbd5e1", textTransform: "uppercase", fontSize: "11px" }}>
-                <th style={{ padding: "14px 16px", textAlign: "center", width: "40px" }}>#</th>
-                <th style={{ padding: "14px 16px", textAlign: "left" }}>Nomor Berkas</th>
-                <th style={{ padding: "14px 16px", textAlign: "left" }}>Tgl Terdaftar</th>
-                <th style={{ padding: "14px 16px", textAlign: "left" }}>Jatuh Tempo</th>
-                <th style={{ padding: "14px 16px", textAlign: "left" }}>Tgl Selesai</th>
-                <th style={{ padding: "14px 16px", textAlign: "left" }}>Nama Kegiatan</th>
-                <th style={{ padding: "14px 16px", textAlign: "left" }}>Nama Pemohon</th>
-                <th style={{ padding: "14px 16px", textAlign: "left" }}>Posisi Terakhir</th>
-                <th style={{ padding: "14px 16px", textAlign: "center" }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRincian.length > 0 ? (
-                filteredRincian.map((row, idx) => {
-                  // Di layar: Tampilkan hanya baris sesuai halaman aktif (10 items). Saat print: Munculkan SEMUA baris karena class hide-on-screen diabaikan oleh @media print.
-                  const isVisibleOnScreen = idx >= (currentPage - 1) * itemsPerPage && idx < currentPage * itemsPerPage;
-                  
-                  return (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", color: "#334155" }}>
+              <thead>
+                <tr style={{ backgroundColor: "#f1f5f9", borderBottom: "1px solid #cbd5e1", textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.5px" }}>
+                  <th style={{ padding: "14px 16px", textAlign: "center", width: "40px", color: "#1e3a8a", fontWeight: "700" }}>#</th>
+                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Nomor Berkas</th>
+                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Tgl Terdaftar</th>
+                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Jatuh Tempo</th>
+                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Tgl Selesai</th>
+                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Nama Kegiatan</th>
+                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Nama Pemohon</th>
+                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Posisi Terakhir</th>
+                  <th style={{ padding: "14px 16px", textAlign: "center", color: "#1e3a8a", fontWeight: "700" }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedRincian.length > 0 ? (
+                  paginatedRincian.map((row, idx) => (
                     <tr 
                       key={idx} 
-                      className={isVisibleOnScreen ? "" : "hide-on-screen"}
-                      style={{ borderBottom: "1px solid #f1f5f9", backgroundColor: idx % 2 === 0 ? "white" : "#f8fafc" }}
+                      style={{ 
+                        borderBottom: "1px solid #f1f5f9",
+                        backgroundColor: idx % 2 === 0 ? "white" : "#f8fafc"
+                      }}
                     >
-                      <td style={{ padding: "12px 16px", textAlign: "center", color: "#94a3b8", fontWeight: "600" }}>{idx + 1}</td>
+                      <td style={{ padding: "12px 16px", textAlign: "center", color: "#94a3b8", fontWeight: "600" }}>
+                        {(currentPage - 1) * itemsPerPage + idx + 1}
+                      </td>
                       <td style={{ padding: "12px 16px", fontWeight: "700", color: "#1d4ed8" }}>{row.noBerkas}</td>
                       <td style={{ padding: "12px 16px" }}>{row.tglTerdaftar}</td>
                       <td style={{ padding: "12px 16px", fontWeight: "600" }}>{row.jatuhtempo}</td>
                       <td style={{ padding: "12px 16px" }}>{row.tglSelesai}</td>
-                      <td style={{ padding: "12px 16px" }}>{row.namaKegiatan}</td>
-                      <td style={{ padding: "12px 16px", fontWeight: "600" }}>{row.namaPemohon}</td>
-                      <td style={{ padding: "12px 16px", color: "#475569" }}>{row.jabatan}</td>
-                      <td style={{ padding: "12px 16px", textAlign: "center" }}>{getStatusBadge(row.status)}</td>
+                      <td style={{ padding: "12px 16px", fontWeight: "500" }}>{row.namaKegiatan}</td>
+                      <td style={{ padding: "12px 16px", fontWeight: "600", textTransform: "uppercase" }}>{row.namaPemohon}</td>
+                      <td style={{ padding: "12px 16px", color: "#475569", fontWeight: "500" }}>{row.jabatan}</td>
+                      <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                        {getStatusBadge(row.status)}
+                      </td>
                     </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan="9" style={{ textAlign: "center", padding: "32px", color: "#94a3b8" }}>Tidak ada data</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="9" style={{ textAlign: "center", padding: "32px", color: "#94a3b8" }}>
+                      {dataRincian.length === 0 
+                        ? "Memuat data..." 
+                        : "Tidak ditemukan data yang cocok dengan kriteria filter"}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
 
-          {/* Navigasi Pagination (Otomatis Hilang saat dicetak berkat .no-print) */}
+          {/* Navigasi Pagination */}
           {filteredRincian.length > itemsPerPage && (
-            <div className="no-print" style={{ padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#f8fafc", borderTop: "1px solid #e2e8f0" }}>
+            <div style={{ padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
               <span style={{ fontSize: "12px", color: "#64748b" }}>
                 Menampilkan {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredRincian.length)} dari {filteredRincian.length} berkas
               </span>
               <div style={{ display: "flex", gap: "8px" }}>
-                <button disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)} style={{ padding: "6px 12px", border: "1px solid #cbd5e1", borderRadius: "6px", cursor: currentPage === 1 ? "not-allowed" : "pointer", fontSize: "12px" }}>
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => p - 1)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "6px",
+                    border: "1px solid #cbd5e1",
+                    backgroundColor: currentPage === 1 ? "#f1f5f9" : "white",
+                    color: currentPage === 1 ? "#94a3b8" : "#334155",
+                    cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                    fontSize: "12px"
+                  }}
+                >
                   ← Sebelumnya
                 </button>
-                <span style={{ padding: "6px 12px", fontSize: "12px", fontWeight: "600" }}>Halaman {currentPage} / {totalPages}</span>
-                <button disabled={currentPage === totalPages} onClick={() => setCurrentPage((p) => p + 1)} style={{ padding: "6px 12px", border: "1px solid #cbd5e1", borderRadius: "6px", cursor: currentPage === totalPages ? "not-allowed" : "pointer", fontSize: "12px" }}>
+                <span style={{ padding: "6px 12px", fontSize: "12px", fontWeight: "600", color: "#1e293b" }}>
+                  Halaman {currentPage} dari {totalPages}
+                </span>
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "6px",
+                    border: "1px solid #cbd5e1",
+                    backgroundColor: currentPage === totalPages ? "#f1f5f9" : "white",
+                    color: currentPage === totalPages ? "#94a3b8" : "#334155",
+                    cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+                    fontSize: "12px"
+                  }}
+                >
                   Berikutnya →
                 </button>
               </div>
@@ -566,6 +775,82 @@ export default function Home() {
           )}
 
         </div>
+
+
+        {/* 2. TAMPILAN KHUSUS CETAK PDF (10 BERKAS PER HALAMAN / SLIDE SECARA OTOMATIS) */}
+        <div className="print-only-section">
+          {printablePagesData.map((chunk, pageIndex) => (
+            <div key={pageIndex} className="print-page-container" style={{ marginBottom: "20px" }}>
+              
+              {/* Header tiap halaman cetak */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "2px solid #0f172a", paddingBottom: "8px", marginBottom: "12px" }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "14px", color: "#0f172a", fontWeight: "700" }}>Kantor Pertanahan Kabupaten Kotawaringin Barat</h3>
+                  <p style={{ margin: "2px 0 0 0", fontSize: "11px", color: "#64748b" }}>Laporan Monitoring Tunggakan Berkas (Halaman {pageIndex + 1} dari {printablePagesData.length})</p>
+                </div>
+                <div style={{ fontSize: "10px", color: "#64748b", textAlign: "right" }}>
+                  <p style={{ margin: 0 }}>Filter: {selectedFilter.toUpperCase()}</p>
+                  <p style={{ margin: "2px 0 0 0" }}>Cetak: {formatCurrentTimestamp()}</p>
+                </div>
+              </div>
+
+              {/* Tabel isi 10 berkas */}
+              <div style={{ flex: 1 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px", color: "#334155" }}>
+                  <thead>
+                    <tr style={{ backgroundColor: "#f1f5f9", borderBottom: "1px solid #cbd5e1", textTransform: "uppercase", fontSize: "10px", letterSpacing: "0.5px" }}>
+                      <th style={{ padding: "8px 10px", textAlign: "center", width: "30px", color: "#1e3a8a", fontWeight: "700" }}>#</th>
+                      <th style={{ padding: "8px 10px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Nomor Berkas</th>
+                      <th style={{ padding: "8px 10px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Tgl Terdaftar</th>
+                      <th style={{ padding: "8px 10px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Jatuh Tempo</th>
+                      <th style={{ padding: "8px 10px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Tgl Selesai</th>
+                      <th style={{ padding: "8px 10px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Nama Kegiatan</th>
+                      <th style={{ padding: "8px 10px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Nama Pemohon</th>
+                      <th style={{ padding: "8px 10px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Posisi Terakhir</th>
+                      <th style={{ padding: "8px 10px", textAlign: "center", color: "#1e3a8a", fontWeight: "700" }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {chunk.map((row, rIdx) => {
+                      const absoluteIndex = pageIndex * itemsPerPage + rIdx + 1;
+                      return (
+                        <tr 
+                          key={rIdx} 
+                          style={{ 
+                            borderBottom: "1px solid #f1f5f9",
+                            backgroundColor: rIdx % 2 === 0 ? "white" : "#f8fafc"
+                          }}
+                        >
+                          <td style={{ padding: "8px 10px", textAlign: "center", color: "#94a3b8", fontWeight: "600" }}>
+                            {absoluteIndex}
+                          </td>
+                          <td style={{ padding: "8px 10px", fontWeight: "700", color: "#1d4ed8" }}>{row.noBerkas}</td>
+                          <td style={{ padding: "8px 10px" }}>{row.tglTerdaftar}</td>
+                          <td style={{ padding: "8px 10px", fontWeight: "600" }}>{row.jatuhtempo}</td>
+                          <td style={{ padding: "8px 10px" }}>{row.tglSelesai}</td>
+                          <td style={{ padding: "8px 10px", fontWeight: "500" }}>{row.namaKegiatan}</td>
+                          <td style={{ padding: "8px 10px", fontWeight: "600", textTransform: "uppercase" }}>{row.namaPemohon}</td>
+                          <td style={{ padding: "8px 10px", color: "#475569", fontWeight: "500" }}>{row.jabatan}</td>
+                          <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                            {getStatusBadge(row.status)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Footer halaman cetak */}
+              <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "6px", display: "flex", justifyContent: "space-between", fontSize: "10px", color: "#94a3b8" }}>
+                <span>Dokumen Resmi Kantor Pertanahan Kabupaten Kotawaringin Barat</span>
+                <span>Halaman {pageIndex + 1}</span>
+              </div>
+
+            </div>
+          ))}
+        </div>
+
       </div>
     </div>
   );
