@@ -13,13 +13,12 @@ import {
   Legend,
 } from "chart.js";
 import { Bar } from "react-chartjs-2";
-import "leaflet/dist/leaflet.css";
 
-// Dynamic Import React Leaflet untuk Server-Side Rendering (Next.js)
-const MapContainer = dynamic(() => import("react-leaflet").then((m) => m.MapContainer), { ssr: false });
-const TileLayer = dynamic(() => import("react-leaflet").then((m) => m.TileLayer), { ssr: false });
-const CircleMarker = dynamic(() => import("react-leaflet").then((m) => m.CircleMarker), { ssr: false });
-const Popup = dynamic(() => import("react-leaflet").then((m) => m.Popup), { ssr: false });
+// Dynamic Import Komponen Map secara utuh dengan SSR false
+const Map = dynamic(() => import("../components/Map"), {
+  ssr: false,
+  loading: () => <div style={{ padding: "20px", textAlign: "center", color: "#64748b" }}>Memuat Peta GEOTAS...</div>,
+});
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -219,7 +218,6 @@ export default function Home() {
       if (fullNoBerkas !== "-") {
         const computedStatus = calculateStatus(jatuhtempo, tglSelesai);
         
-        // Cek apakah kegiatan termasuk dalam daftar Layanan Prioritas
         const lowerKegiatan = cleanedKegiatan.toLowerCase();
         const isPrioritas = LAYANAN_PRIORITAS.some((p) => lowerKegiatan.includes(p));
 
@@ -440,28 +438,17 @@ export default function Home() {
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f1f5f9", padding: "32px 20px", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
-      
-      <link
-        rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-        crossOrigin=""
-      />
-
       <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
         
         <style jsx global>{`
-          /* Tampilan Normal (Layar Web) */
           .only-print { display: none !important; }
 
-          /* Tampilan Khusus Cetak PDF */
           @media print {
             @page {
               size: A4 landscape;
               margin: 8mm;
             }
 
-            /* Force Reset Overflow Semua Element */
             html, body, #__next, main, div {
               height: auto !important;
               min-height: 0 !important;
@@ -479,7 +466,6 @@ export default function Home() {
               print-color-adjust: exact !important;
             }
 
-            /* Sembunyikan Komponen Non-Laporan saat Cetak */
             .no-print, 
             header,
             .leaflet-container, 
@@ -494,7 +480,6 @@ export default function Home() {
               padding: 0 !important;
             }
 
-            /* Tampilkan Tabel Cetak */
             .only-print { 
               display: block !important; 
               width: 100% !important;
@@ -711,39 +696,7 @@ export default function Home() {
           </div>
 
           <div style={{ height: "460px", minHeight: "460px", width: "100%", borderRadius: "10px", overflow: "hidden", position: "relative", zIndex: 1, border: "1px solid #cbd5e1" }}>
-            {typeof window !== "undefined" && (
-              <MapContainer center={[CENTER_LAT, CENTER_LNG]} zoom={11} style={{ height: "100%", width: "100%", position: "absolute", top: 0, left: 0 }}>
-                <TileLayer
-                  url={
-                    basemap === "satellite"
-                      ? "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                      : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  }
-                  attribution="&copy; ESRI / OpenStreetMap / ATR BPN GEOTAS"
-                />
-                {filteredRincian.map((item, idx) => {
-                  const color = item.status === "GREEN" ? "#10b981" : item.status === "YELLOW" ? "#f59e0b" : "#ef4444";
-                  return (
-                    <CircleMarker
-                      key={idx}
-                      center={[item.lat, item.lng]}
-                      radius={8}
-                      pathOptions={{ fillColor: color, color: "#ffffff", weight: 1.5, fillOpacity: 0.9 }}
-                    >
-                      <Popup>
-                        <div style={{ color: "#0f172a", fontSize: "12px", fontFamily: "sans-serif" }}>
-                          <strong style={{ color: "#2563eb" }}>No Berkas: {item.noBerkas}</strong><br />
-                          <b>Pemohon:</b> {item.namaPemohon}<br />
-                          <b>Kegiatan:</b> {item.namaKegiatan} {item.isPrioritas && <span style={{ color: "#7c3aed", fontWeight: "bold" }}>(⭐ Prioritas)</span>}<br />
-                          <b>Posisi:</b> {item.jabatan}<br />
-                          <b>Status:</b> <span style={{ color, fontWeight: "bold" }}>{item.status}</span>
-                        </div>
-                      </Popup>
-                    </CircleMarker>
-                  );
-                })}
-              </MapContainer>
-            )}
+            <Map basemap={basemap} filteredRincian={filteredRincian} />
           </div>
         </div>
 
@@ -772,7 +725,6 @@ export default function Home() {
         {/* Tabel Data Container */}
         <div className="card-box print-container" style={{ backgroundColor: "white", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
           
-          {/* Header Tabel untuk Versi Cetak PDF */}
           <div className="only-print" style={{ marginBottom: "20px", borderBottom: "2px solid #0f172a", paddingBottom: "10px" }}>
             <h2 style={{ margin: 0, fontSize: "18px", color: "#0f172a" }}>LAPORAN MONITORING TUNGGAKAN BERKAS PERTANAHAN</h2>
             <p style={{ margin: "4px 0 0 0", fontSize: "12px", color: "#475569" }}>Kantor Pertanahan Kabupaten Kotawaringin Barat | Tanggal: {lastUpdated || "-"}</p>
@@ -823,7 +775,6 @@ export default function Home() {
             />
           </div>
 
-          {/* 1. Tabel Tampilan Web (Pagination) */}
           <div className="table-responsive-wrapper no-print">
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", color: "#334155" }}>
               <thead>
@@ -884,7 +835,6 @@ export default function Home() {
             </table>
           </div>
 
-          {/* 2. Tabel Cetak PDF (Menampilkan Seluruh Data Tanpa Pagination) */}
           <div className="only-print">
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "9px", color: "#334155" }}>
               <thead>
@@ -922,7 +872,6 @@ export default function Home() {
             </table>
           </div>
 
-          {/* Navigasi Pagination */}
           {filteredRincian.length > itemsPerPage && (
             <div className="no-print" style={{ padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
               <span style={{ fontSize: "12px", color: "#64748b" }}>
