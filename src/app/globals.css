@@ -7,33 +7,94 @@ body {
   font-family: system-ui, -apple-system, sans-serif;
 }
 
-/* FIX CETAK MULTI-HALAMAN PDF */
+/* FIX CETAK MULTI-HALAMAN PDF SANGAT AGRESIF */
 @media print {
   @page {
     size: A4 landscape;
     margin: 8mm;
   }
 
-  html, body {
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
-    overflow: visible !important;
-    background: white !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  /* Melepas kuncian wrapper Next.js */
-  body > div, 
+  /* 1. Unset/Reset Seluruh Container Parent */
+  html, 
+  body, 
   #__next, 
   main, 
-  div {
+  div,
+  section,
+  article {
     height: auto !important;
     min-height: 0 !important;
     max-height: none !important;
     overflow: visible !important;
     position: static !important;
     float: none !important;
+    display: block !important;
+  }
+
+  body { 
+    background: white !important; 
+    padding: 0 !important; 
+    margin: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* 2. Sembunyikan Komponen Interaktif / Non-Laporan */
+  .no-print, 
+  header,
+  nav,
+  footer,
+  .leaflet-container, 
+  .leaflet-pane,
+  canvas,
+  svg { 
+    display: none !important; 
+    height: 0 !important;
+    max-height: 0 !important;
+    opacity: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* 3. Atur Wrapper Tabel Cetak */
+  .only-print { 
+    display: block !important; 
+    width: 100% !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .only-print table { 
+    width: 100% !important;
+    border-collapse: collapse !important;
+    table-layout: auto !important;
+    break-after: auto !important;
+    page-break-after: auto !important;
+  }
+
+  /* 4. Paksa Pemisahan Halaman (Page Break) antar Baris Data */
+  .only-print tr { 
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    break-after: auto !important;
+    page-break-after: auto !important;
+  }
+
+  .only-print thead { 
+    display: table-header-group !important; 
+  }
+
+  .only-print tbody {
+    display: table-row-group !important;
+  }
+
+  .only-print th, 
+  .only-print td {
+    padding: 5px 6px !important;
+    font-size: 8.5pt !important;
+    line-height: 1.2 !important;
+    word-wrap: break-word !important;
+    border-bottom: 1px solid #cbd5e1 !important;
   }
 }
