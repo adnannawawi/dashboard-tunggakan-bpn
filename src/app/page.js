@@ -251,7 +251,6 @@ export default function Home() {
     if (savedTimestamp) setLastUpdated(savedTimestamp);
     if (savedFileName) setFileName(savedFileName);
 
-    // Buka saluran streaming Server-Sent Events ke API backend
     const eventSource = new EventSource("/api/stream");
 
     eventSource.onmessage = (event) => {
@@ -279,7 +278,6 @@ export default function Home() {
       eventSource.close();
     };
 
-    // Bersihkan koneksi SSE saat komponen unmount
     return () => {
       eventSource.close();
     };
@@ -430,7 +428,7 @@ export default function Home() {
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f1f5f9", padding: "32px 20px", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
       
-      {/* Import CSS Leaflet via CDN agar Map Tidak Rusak/Hilang */}
+      {/* Import CSS Leaflet */}
       <link
         rel="stylesheet"
         href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -446,6 +444,11 @@ export default function Home() {
 
           /* Tampilan Khusus Cetak PDF */
           @media print {
+            @page {
+              size: A4 landscape;
+              margin: 10mm;
+            }
+
             body, html { 
               background: white !important; 
               padding: 0 !important; 
@@ -453,34 +456,52 @@ export default function Home() {
               height: auto !important;
               overflow: visible !important;
             }
-            .no-print { display: none !important; }
-            .only-print { display: block !important; }
+
+            .no-print { 
+              display: none !important; 
+            }
+
+            .only-print { 
+              display: block !important; 
+            }
+
             .print-container { 
               width: 100% !important; 
               max-width: 100% !important; 
               overflow: visible !important; 
               position: static !important;
+              box-shadow: none !important;
+              border: none !important;
             }
+
             .card-box { 
               box-shadow: none !important; 
               border: 1px solid #cbd5e1 !important; 
               overflow: visible !important;
-              page-break-inside: auto;
+              page-break-inside: avoid;
+              margin-bottom: 20px !important;
             }
-            .table-responsive-wrapper {
-              overflow: visible !important;
-              height: auto !important;
-            }
-            table { 
-              page-break-inside: auto;
+
+            /* Memastikan seluruh baris tabel dicetak lengkap multi-halaman */
+            .only-print table { 
               width: 100% !important;
+              border-collapse: collapse !important;
+              page-break-inside: auto !important;
             }
-            tr { 
-              page-break-inside: avoid; 
-              page-break-after: auto;
+
+            .only-print tr { 
+              page-break-inside: avoid !important; 
+              page-break-after: auto !important;
             }
-            thead { 
-              display: table-header-group; 
+
+            .only-print thead { 
+              display: table-header-group !important; 
+            }
+
+            /* Memastikan warna background badge ter-render saat cetak */
+            * {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
             }
           }
         `}</style>
@@ -614,7 +635,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* --- PANEL PETA GIS GEOTAS INTERAKTIF --- */}
+        {/* PANEL PETA GIS GEOTAS */}
         <div className="card-box" style={{ backgroundColor: "white", padding: "20px", borderRadius: "14px", border: "1px solid #e2e8f0", marginBottom: "28px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -622,7 +643,6 @@ export default function Home() {
               <h3 style={{ margin: 0, fontSize: "16px", color: "#0f172a", fontWeight: "700" }}>Peta Interaktif Sebaran Persil & Berkas Pertanahan (GEOTAS)</h3>
             </div>
 
-            {/* Control Switcher Basemap */}
             <div className="no-print" style={{ display: "flex", gap: "6px", backgroundColor: "#f1f5f9", padding: "4px", borderRadius: "8px", border: "1px solid #cbd5e1" }}>
               <button
                 onClick={() => setBasemap("osm")}
@@ -750,7 +770,7 @@ export default function Home() {
             />
           </div>
 
-          {/* 1. Tabel untuk Tampilan Layar (Menggunakan Pagination) */}
+          {/* 1. Tabel Tampilan Web (Pagination Aktif) */}
           <div className="table-responsive-wrapper no-print">
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", color: "#334155" }}>
               <thead>
@@ -804,20 +824,20 @@ export default function Home() {
             </table>
           </div>
 
-          {/* 2. Tabel untuk Hasil Cetak PDF (Menggunakan Seluruh Data / filteredRincian) */}
+          {/* 2. Tabel Cetak PDF (Menampilkan Seluruh Baris 'filteredRincian' Tanpa Pagination) */}
           <div className="only-print">
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px", color: "#334155" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10px", color: "#334155" }}>
               <thead>
                 <tr style={{ backgroundColor: "#f1f5f9", textTransform: "uppercase" }}>
-                  <th style={{ padding: "8px 10px", borderBottom: "1px solid #cbd5e1" }}>#</th>
-                  <th style={{ padding: "8px 10px", borderBottom: "1px solid #cbd5e1", textAlign: "left" }}>Nomor Berkas</th>
-                  <th style={{ padding: "8px 10px", borderBottom: "1px solid #cbd5e1", textAlign: "left" }}>Tgl Terdaftar</th>
-                  <th style={{ padding: "8px 10px", borderBottom: "1px solid #cbd5e1", textAlign: "left" }}>Jatuh Tempo</th>
-                  <th style={{ padding: "8px 10px", borderBottom: "1px solid #cbd5e1", textAlign: "left" }}>Tgl Selesai</th>
-                  <th style={{ padding: "8px 10px", borderBottom: "1px solid #cbd5e1", textAlign: "left" }}>Nama Kegiatan</th>
-                  <th style={{ padding: "8px 10px", borderBottom: "1px solid #cbd5e1", textAlign: "left" }}>Nama Pemohon</th>
-                  <th style={{ padding: "8px 10px", borderBottom: "1px solid #cbd5e1", textAlign: "left" }}>Posisi Terakhir / Petugas</th>
-                  <th style={{ padding: "8px 10px", borderBottom: "1px solid #cbd5e1", textAlign: "center" }}>Status</th>
+                  <th style={{ padding: "8px 10px", borderBottom: "2px solid #cbd5e1" }}>#</th>
+                  <th style={{ padding: "8px 10px", borderBottom: "2px solid #cbd5e1", textAlign: "left" }}>Nomor Berkas</th>
+                  <th style={{ padding: "8px 10px", borderBottom: "2px solid #cbd5e1", textAlign: "left" }}>Tgl Terdaftar</th>
+                  <th style={{ padding: "8px 10px", borderBottom: "2px solid #cbd5e1", textAlign: "left" }}>Jatuh Tempo</th>
+                  <th style={{ padding: "8px 10px", borderBottom: "2px solid #cbd5e1", textAlign: "left" }}>Tgl Selesai</th>
+                  <th style={{ padding: "8px 10px", borderBottom: "2px solid #cbd5e1", textAlign: "left" }}>Nama Kegiatan</th>
+                  <th style={{ padding: "8px 10px", borderBottom: "2px solid #cbd5e1", textAlign: "left" }}>Nama Pemohon</th>
+                  <th style={{ padding: "8px 10px", borderBottom: "2px solid #cbd5e1", textAlign: "left" }}>Posisi Terakhir / Petugas</th>
+                  <th style={{ padding: "8px 10px", borderBottom: "2px solid #cbd5e1", textAlign: "center" }}>Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -831,14 +851,16 @@ export default function Home() {
                     <td style={{ padding: "8px 10px" }}>{row.namaKegiatan}</td>
                     <td style={{ padding: "8px 10px" }}>{row.namaPemohon}</td>
                     <td style={{ padding: "8px 10px" }}>{row.jabatan}</td>
-                    <td style={{ padding: "8px 10px", textAlign: "center" }}>{row.status}</td>
+                    <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                      {getStatusBadge(row.status)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {/* Navigasi Pagination */}
+          {/* Navigasi Pagination (Hanya Muncul di Tampilan Layar Web) */}
           {filteredRincian.length > itemsPerPage && (
             <div className="no-print" style={{ padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
               <span style={{ fontSize: "12px", color: "#64748b" }}>
