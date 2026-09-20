@@ -203,23 +203,28 @@ export default function Home() {
     setCurrentPage(1);
   }, []);
 
-  // Memproses data TANPA memperbarui timestamp secara otomatis
-  const processAndSetData = useCallback((rawJsonData, sourceName) => {
+  // PERBAIKAN: Fungsi processAndSetData diperbarui agar dapat menerima parameter forceNewTimestamp
+  const processAndSetData = useCallback((rawJsonData, sourceName, forceNewTimestamp = false) => {
     if (!Array.isArray(rawJsonData) || rawJsonData.length === 0) return;
 
     setFileName(sourceName);
     localStorage.setItem("atr_bpn_file_name", sourceName);
 
+    if (forceNewTimestamp) {
+      const newTimestamp = formatCurrentTimestamp();
+      setLastUpdated(newTimestamp);
+      localStorage.setItem("atr_bpn_last_updated", newTimestamp);
+    }
+
     processExcelData(rawJsonData);
   }, [processExcelData]);
 
-  // AUTO-LOAD WEB DATA PADA INITIAL RENDER
+  // AUTO-LOAD WEB DATA & LISTENER DARI EKSTENSI BROWSER
   useEffect(() => {
     const fetchDataAuto = async () => {
       const savedFileName = localStorage.getItem("atr_bpn_file_name");
       const savedTimestamp = localStorage.getItem("atr_bpn_last_updated");
 
-      // Set timestamp lama yang ada di localStorage saat pertama kali dimuat/di-refresh
       if (savedTimestamp) {
         setLastUpdated(savedTimestamp);
       }
@@ -228,14 +233,12 @@ export default function Home() {
       }
 
       try {
-        const res = await fetch(`/api/ingest?t=${Date.now()}`); // Bypass cache HTTP
+        const res = await fetch(`/api/ingest?t=${Date.now()}`);
         const result = await res.json();
         
         if (result.success && result.data && result.data.length > 0) {
-          // Olah data tanpa menimpa timestamp lama
-          processAndSetData(result.data, savedFileName || "Auto-Sync Web ATR/BPN");
+          processAndSetData(result.data, savedFileName || "Auto-Sync Web ATR/BPN", false);
 
-          // Timestamp HANYA diperbarui jika server mengembalikan data baru dengan atribut `lastUpdated`
           if (result.isNewSync && result.lastUpdated) {
             setLastUpdated(result.lastUpdated);
             localStorage.setItem("atr_bpn_last_updated", result.lastUpdated);
@@ -247,17 +250,27 @@ export default function Home() {
     };
 
     fetchDataAuto();
+
+    // PERBAIKAN: Menambahkan listener komunikasi dengan Ekstensi Browser
+    const handleExtensionMessage = (event) => {
+      if (event.data && (event.data.type === "ATR_BPN_UPDATE_DATA" || event.data.action === "UPDATE_DASHBOARD")) {
+        const extData = event.data.data || event.data.rows;
+        if (extData && Array.isArray(extData)) {
+          processAndSetData(extData, "Update Realtime Ekstensi", true);
+        }
+      }
+    };
+
+    window.addEventListener("message", handleExtensionMessage);
+    return () => {
+      window.removeEventListener("message", handleExtensionMessage);
+    };
   }, [processAndSetData]);
 
   // UPLOAD FILE MANUAL (EXCEL / JSON)
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
-    // KETIKA USER MANUAL UPLOAD -> Timestamp Baru Terbuat
-    const newTimestamp = formatCurrentTimestamp();
-    setLastUpdated(newTimestamp);
-    localStorage.setItem("atr_bpn_last_updated", newTimestamp);
 
     const isJson = file.name.endsWith(".json");
 
@@ -267,7 +280,7 @@ export default function Home() {
         try {
           const parsedData = JSON.parse(evt.target.result);
           const dataArray = Array.isArray(parsedData) ? parsedData : parsedData.data || [];
-          processAndSetData(dataArray, file.name);
+          processAndSetData(dataArray, file.name, true);
         } catch (err) {
           alert("Gagal membaca file JSON. Pastikan format file benar.");
         }
@@ -282,7 +295,7 @@ export default function Home() {
         const ws = workbook.Sheets[sheetName];
 
         const rawDataJson = XLSX.utils.sheet_to_json(ws, { defval: "" });
-        processAndSetData(rawDataJson, file.name);
+        processAndSetData(rawDataJson, file.name, true);
       };
       reader.readAsBinaryString(file);
     }
@@ -747,3 +760,4 @@ export default function Home() {
     </div>
   );
 }
+```[cite: 18]
