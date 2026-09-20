@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import * as XLSX from "xlsx";
 import {
   Chart as ChartJS,
@@ -12,8 +13,19 @@ import {
   Legend,
 } from "chart.js";
 import { Bar } from "react-chartjs-2";
+import "leaflet/dist/leaflet.css";
+
+// Dynamic Import React Leaflet untuk Server-Side Rendering (Next.js)
+const MapContainer = dynamic(() => import("react-leaflet").then((m) => m.MapContainer), { ssr: false });
+const TileLayer = dynamic(() => import("react-leaflet").then((m) => m.TileLayer), { ssr: false });
+const CircleMarker = dynamic(() => import("react-leaflet").then((m) => m.CircleMarker), { ssr: false });
+const Popup = dynamic(() => import("react-leaflet").then((m) => m.Popup), { ssr: false });
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+
+// Pusat Koordinat Default (Kotawaringin Barat / Pangkalan Bun)
+const CENTER_LAT = -2.6833;
+const CENTER_LNG = 111.6167;
 
 export default function Home() {
   const [dataRincian, setDataRincian] = useState([]);
@@ -23,6 +35,7 @@ export default function Home() {
   const [lastUpdated, setLastUpdated] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("semua");
+  const [basemap, setBasemap] = useState("osm"); // 'osm' | 'satellite'
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -77,7 +90,7 @@ export default function Home() {
       const date = new Date(Math.round((val - 25569) * 86400 * 1000));
       return date.toLocaleDateString("id-ID");
     }
-    return String(val).trim();
+    return String(val).replace(/\s+/g, " ").trim();
   };
 
   const calculateStatus = (jatuhtempoVal, tglSelesaiVal) => {
@@ -120,19 +133,19 @@ export default function Home() {
     return undefined;
   };
 
-  const generateAggregations = (list) => {
+  const generateAggregations = useCallback((list) => {
     const layananMap = {};
     const jabatanMap = {};
 
     list.forEach((item) => {
-      const lay = item.namaKegiatan !== "-" ? item.namaKegiatan : "Layanan Lainnya";
+      const lay = item.namaKegiatan !== "-" ? item.namaKegiatan.trim() : "Layanan Lainnya";
       if (!layananMap[lay]) layananMap[lay] = { kategori: lay, jumlah: 0, sesuai: 0, hampir: 0, sudah: 0 };
       layananMap[lay].jumlah += 1;
       if (item.status === "GREEN") layananMap[lay].sesuai += 1;
       else if (item.status === "YELLOW") layananMap[lay].hampir += 1;
       else if (item.status === "RED") layananMap[lay].sudah += 1;
 
-      const jab = item.jabatan !== "-" ? item.jabatan : "Petugas / Posisi Lain";
+      const jab = item.jabatan !== "-" ? item.jabatan.trim() : "Petugas / Posisi Lain";
       if (!jabatanMap[jab]) jabatanMap[jab] = { kategori: jab, jumlah: 0, sesuai: 0, hampir: 0, sudah: 0 };
       jabatanMap[jab].jumlah += 1;
       if (item.status === "GREEN") jabatanMap[jab].sesuai += 1;
@@ -142,12 +155,12 @@ export default function Home() {
 
     setDataLayanan(Object.values(layananMap));
     setDataJabatan(Object.values(jabatanMap));
-  };
+  }, []);
 
   const processExcelData = useCallback((rows) => {
     const rincianList = [];
 
-    rows.forEach((row) => {
+    rows.forEach((row, idx) => {
       const nomor = getFieldValue(row, ["Nomor_Berkas", "No_Berkas", "Nomor", "NoBerkas"]);
       const tahun = getFieldValue(row, ["Tahun_Berkas", "Tahun"]);
       const tglTerdaftar = getFieldValue(row, ["Tanggal_Terdaftar", "Tgl_Terdaftar", "Terdaftar"]);
@@ -156,15 +169,29 @@ export default function Home() {
       const tglDiserahkan = getFieldValue(row, ["Tanggal_Diserahkan", "Tgl_Diserahkan", "Dikirim"]);
       
       const rawKegiatan = getFieldValue(row, ["Nama_Kegiatan", "Nama_Layanan", "Kegiatan", "Layanan"]);
+      
       const rawPosisi = getFieldValue(row, [
+        "Petugas_Ukur",
+        "PetugasUkur",
+        "Nama_Petugas",
+        "Petugas_Terakhir",
+        "Nama_Jabatan",
+        "Jabatan",
+        "Petugas",
         "Posisi_Terakhir", 
-        "Posisi_Berkas", 
-        "Nama_Petugas", 
-        "Petugas_Terakhir", 
-        "Nama_Jabatan", 
-        "Jabatan", 
-        "Petugas"
+        "Posisi_Berkas"
       ]);
+
+      // Parsing Koordinat Asli / Fallback Distribusi Geospasial
+      let latVal = parseFloat(getFieldValue(row, ["Latitude", "Lat", "Y"]));
+      let lngVal = parseFloat(getFieldValue(row, ["Longitude", "Lng", "Long", "X"]));
+
+      if (isNaN(latVal) || latVal === 0) {
+        latVal = CENTER_LAT + (Math.sin(idx * 7) * 0.08);
+      }
+      if (isNaN(lngVal) || lngVal === 0) {
+        lngVal = CENTER_LNG + (Math.cos(idx * 7) * 0.08);
+      }
 
       let fullNoBerkas = formatValue(nomor);
       if (tahun && String(nomor) !== "-" && String(tahun) !== "-") {
@@ -174,9 +201,11 @@ export default function Home() {
       let cleanedKegiatan = formatValue(rawKegiatan);
       let cleanedPosisi = formatValue(rawPosisi);
 
-      // Normalisasi posisi agar masuk ke Top Bottleneck dengan tepat
-      if (cleanedPosisi.toLowerCase().includes("pengukuran") || cleanedPosisi.toLowerCase().includes("pemetan")) {
-        cleanedPosisi = "Pengukuran Dan Pemetan Kadastral";
+      if (cleanedKegiatan.includes("Pemetan")) {
+        cleanedKegiatan = cleanedKegiatan.replace(/Pemetan/g, "Pemetaan");
+      }
+      if (cleanedPosisi.includes("Pemetan")) {
+        cleanedPosisi = cleanedPosisi.replace(/Pemetan/g, "Pemetaan");
       }
 
       if (fullNoBerkas !== "-") {
@@ -192,6 +221,8 @@ export default function Home() {
           namaPemohon: formatValue(getFieldValue(row, ["Nama_Pemohon", "Pemohon"])),
           status: computedStatus,
           jabatan: cleanedPosisi,
+          lat: latVal,
+          lng: lngVal,
         });
       }
     });
@@ -199,74 +230,68 @@ export default function Home() {
     setDataRincian(rincianList);
     generateAggregations(rincianList);
     setCurrentPage(1);
-  }, []);
+  }, [generateAggregations]);
 
-  const processAndSetData = useCallback((rawJsonData, sourceName, forceNewTimestamp = false) => {
+  const processAndSetData = useCallback((rawJsonData, sourceName) => {
     if (!Array.isArray(rawJsonData) || rawJsonData.length === 0) return;
 
     setFileName(sourceName);
-    localStorage.setItem("atr_bpn_file_name", sourceName);
-
-    if (forceNewTimestamp) {
-      const newTimestamp = formatCurrentTimestamp();
-      setLastUpdated(newTimestamp);
-      localStorage.setItem("atr_bpn_last_updated", newTimestamp);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("atr_bpn_file_name", sourceName);
     }
 
     processExcelData(rawJsonData);
   }, [processExcelData]);
 
-  // AUTO-LOAD WEB DATA & LISTENER DARI EKSTENSI BROWSER
+  // --- INTEGRASI SSE REAL-TIME ---
   useEffect(() => {
-    const fetchDataAuto = async () => {
-      const savedFileName = localStorage.getItem("atr_bpn_file_name");
-      const savedTimestamp = localStorage.getItem("atr_bpn_last_updated");
+    const savedFileName = localStorage.getItem("atr_bpn_file_name");
+    const savedTimestamp = localStorage.getItem("atr_bpn_last_updated");
 
-      if (savedTimestamp) {
-        setLastUpdated(savedTimestamp);
-      }
-      if (savedFileName) {
-        setFileName(savedFileName);
-      }
+    if (savedTimestamp) setLastUpdated(savedTimestamp);
+    if (savedFileName) setFileName(savedFileName);
 
+    // Buka saluran streaming Server-Sent Events ke API backend
+    const eventSource = new EventSource("/api/stream");
+
+    eventSource.onmessage = (event) => {
       try {
-        const res = await fetch(`/api/ingest?t=${Date.now()}`);
-        const result = await res.json();
-        
-        if (result.success && result.data && result.data.length > 0) {
-          processAndSetData(result.data, savedFileName || "Data Dummy Sistem", false);
+        const result = JSON.parse(event.data);
 
-          if (result.isNewSync && result.lastUpdated) {
-            setLastUpdated(result.lastUpdated);
-            localStorage.setItem("atr_bpn_last_updated", result.lastUpdated);
+        if (result && (Array.isArray(result) || result.data)) {
+          const rawData = Array.isArray(result) ? result : result.data;
+
+          if (rawData && rawData.length > 0) {
+            processAndSetData(rawData, savedFileName || "Auto-Sync Realtime Web ATR/BPN");
+
+            const newTime = result.lastUpdated || formatCurrentTimestamp();
+            setLastUpdated(newTime);
+            localStorage.setItem("atr_bpn_last_updated", newTime);
           }
         }
       } catch (err) {
-        console.error("Gagal mengambil data otomatis:", err);
+        console.error("Gagal memproses stream SSE:", err);
       }
     };
 
-    fetchDataAuto();
-
-    const handleExtensionMessage = (event) => {
-      if (event.data && (event.data.type === "ATR_BPN_UPDATE_DATA" || event.data.action === "UPDATE_DASHBOARD")) {
-        const extData = event.data.data || event.data.rows;
-        if (extData && Array.isArray(extData)) {
-          processAndSetData(extData, "Update Realtime Ekstensi", true);
-        }
-      }
+    eventSource.onerror = (err) => {
+      console.error("Koneksi SSE terputus/error:", err);
+      eventSource.close();
     };
 
-    window.addEventListener("message", handleExtensionMessage);
+    // Bersihkan koneksi SSE saat komponen unmount
     return () => {
-      window.removeEventListener("message", handleExtensionMessage);
+      eventSource.close();
     };
   }, [processAndSetData]);
 
-  // UPLOAD FILE MANUAL (EXCEL / JSON)
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    const newTimestamp = formatCurrentTimestamp();
+    setLastUpdated(newTimestamp);
+    localStorage.setItem("atr_bpn_last_updated", newTimestamp);
 
     const isJson = file.name.endsWith(".json");
 
@@ -276,7 +301,7 @@ export default function Home() {
         try {
           const parsedData = JSON.parse(evt.target.result);
           const dataArray = Array.isArray(parsedData) ? parsedData : parsedData.data || [];
-          processAndSetData(dataArray, file.name, true);
+          processAndSetData(dataArray, file.name);
         } catch (err) {
           alert("Gagal membaca file JSON. Pastikan format file benar.");
         }
@@ -291,7 +316,7 @@ export default function Home() {
         const ws = workbook.Sheets[sheetName];
 
         const rawDataJson = XLSX.utils.sheet_to_json(ws, { defval: "" });
-        processAndSetData(rawDataJson, file.name, true);
+        processAndSetData(rawDataJson, file.name);
       };
       reader.readAsBinaryString(file);
     }
@@ -307,7 +332,6 @@ export default function Home() {
   const pctHampir = totalBerkas > 0 ? Math.round((totalHampir / totalBerkas) * 100) : 0;
   const pctSudah = totalBerkas > 0 ? Math.round((totalSudah / totalBerkas) * 100) : 0;
 
-  // Filtered & Paginated Table Data
   const filteredRincian = useMemo(() => {
     return dataRincian.filter((item) => {
       let matchesFilter = true;
@@ -332,7 +356,6 @@ export default function Home() {
     return filteredRincian.slice(start, start + itemsPerPage);
   }, [filteredRincian, currentPage]);
 
-  // Chart Layanan
   const chartDataLayanan = {
     labels: dataLayanan.map((item) => item.kategori),
     datasets: [
@@ -355,12 +378,11 @@ export default function Home() {
     },
   };
 
-  // Chart Bottleneck Posisi Terakhir
   const topRedJabatan = useMemo(() => {
     return [...dataJabatan]
       .filter((j) => j.sudah > 0)
       .sort((a, b) => b.sudah - a.sudah)
-      .slice(0, 5);
+      .slice(0, 10);
   }, [dataJabatan]);
 
   const chartDataJabatan = {
@@ -407,9 +429,17 @@ export default function Home() {
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f1f5f9", padding: "32px 20px", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
+      
+      {/* Import CSS Leaflet via CDN agar Map Tidak Rusak/Hilang */}
+      <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossOrigin=""
+      />
+
       <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
         
-        {/* CSS Cetak Multi-Halaman */}
         <style jsx global>{`
           @media print {
             body, html { 
@@ -455,7 +485,7 @@ export default function Home() {
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
               <div style={{ display: "inline-block", backgroundColor: "#1e293b", color: "#38bdf8", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: "600" }}>
-                Sistem Informasi Pertanahan
+                Sistem Informasi Pertanahan (GEOTAS)
               </div>
               {lastUpdated && (
                 <div style={{ fontSize: "11px", color: "#94a3b8", display: "flex", alignItems: "center", gap: "4px" }}>
@@ -505,7 +535,6 @@ export default function Home() {
 
         {/* Card KPI Metrics */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "20px", marginBottom: "28px" }}>
-          
           <div 
             onClick={() => { setSelectedFilter("semua"); setCurrentPage(1); }}
             className="card-box"
@@ -578,13 +607,11 @@ export default function Home() {
             </div>
             <p style={{ margin: "6px 0 0 0", fontSize: "12px", color: "#64748b" }}>{pctSudah}% melebihi jatuh tempo</p>
           </div>
-
         </div>
 
-        {/* Visualisasi Grafik */}
+              {/* Visualisasi Grafik */}
         {dataLayanan.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: topRedJabatan.length > 0 ? "2fr 1fr" : "1fr", gap: "20px", marginBottom: "28px" }}>
-            
             <div className="card-box" style={{ backgroundColor: "white", padding: "24px", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
               <h3 style={{ margin: "0 0 16px 0", fontSize: "15px", color: "#0f172a", fontWeight: "700" }}>📊 Grafik Status per Jenis Layanan</h3>
               <div style={{ height: "300px" }}>
@@ -601,15 +628,12 @@ export default function Home() {
                 </div>
               </div>
             )}
-
           </div>
         )}
 
         {/* Tabel Data */}
         <div className="card-box print-container" style={{ backgroundColor: "white", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
-          
           <div className="no-print" style={{ padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px", borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
-            
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               {[
                 { id: "semua", label: "Semua Berkas" },
@@ -664,7 +688,7 @@ export default function Home() {
                   <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Tgl Selesai</th>
                   <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Nama Kegiatan</th>
                   <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Nama Pemohon</th>
-                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Posisi Terakhir</th>
+                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Posisi Terakhir / Petugas</th>
                   <th style={{ padding: "14px 16px", textAlign: "center", color: "#1e3a8a", fontWeight: "700" }}>Status</th>
                 </tr>
               </thead>
@@ -749,7 +773,6 @@ export default function Home() {
               </div>
             </div>
           )}
-
         </div>
 
       </div>
