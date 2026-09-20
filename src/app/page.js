@@ -200,7 +200,6 @@ export default function Home() {
     setCurrentPage(1);
   }, []);
 
-  // Diperbarui agar mendukung customTimestamp secara fleksibel
   const processAndSetData = useCallback((rawJsonData, sourceName, customTimestamp = null) => {
     if (!Array.isArray(rawJsonData) || rawJsonData.length === 0) return;
 
@@ -218,18 +217,13 @@ export default function Home() {
     processExcelData(rawJsonData);
   }, [processExcelData]);
 
-  // AUTO-LOAD WEB DATA & LISTENER DARI EKSTENSI BROWSER
   useEffect(() => {
     const fetchDataAuto = async () => {
       const savedFileName = localStorage.getItem("atr_bpn_file_name");
       const savedTimestamp = localStorage.getItem("atr_bpn_last_updated");
 
-      if (savedTimestamp) {
-        setLastUpdated(savedTimestamp);
-      }
-      if (savedFileName) {
-        setFileName(savedFileName);
-      }
+      if (savedTimestamp) setLastUpdated(savedTimestamp);
+      if (savedFileName) setFileName(savedFileName);
 
       try {
         const res = await fetch(`/api/ingest?t=${Date.now()}`);
@@ -270,7 +264,6 @@ export default function Home() {
     };
   }, [processAndSetData]);
 
-  // UPLOAD FILE MANUAL (EXCEL / JSON)
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -363,7 +356,6 @@ export default function Home() {
     },
   };
 
-  // Chart Bottleneck Posisi Terakhir
   const topRedJabatan = useMemo(() => {
     return [...dataJabatan]
       .filter((j) => j.sudah > 0)
@@ -418,6 +410,10 @@ export default function Home() {
       <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
         
         <style jsx global>{`
+          @page {
+            size: A4 landscape;
+            margin: 10mm;
+          }
           @media print {
             body, html { 
               background: white !important; 
@@ -432,6 +428,8 @@ export default function Home() {
               max-width: 100% !important; 
               overflow: visible !important; 
               position: static !important;
+              box-shadow: none !important;
+              border: none !important;
             }
             .card-box { 
               box-shadow: none !important; 
@@ -442,6 +440,15 @@ export default function Home() {
             .table-responsive-wrapper {
               overflow: visible !important;
               height: auto !important;
+              max-height: none !important;
+            }
+            /* Sembunyikan elemen pagination khusus print */
+            .print-hide-pagination {
+              display: none !important;
+            }
+            /* Tampilkan baris penuh semua data tabel saat dicetak */
+            .print-table-row {
+              display: table-row !important;
             }
             table { 
               page-break-inside: auto;
@@ -676,30 +683,44 @@ export default function Home() {
                 </tr>
               </thead>
               <tbody>
-                {paginatedRincian.length > 0 ? (
-                  paginatedRincian.map((row, idx) => (
-                    <tr 
-                      key={idx} 
-                      style={{ 
-                        borderBottom: "1px solid #f1f5f9",
-                        backgroundColor: idx % 2 === 0 ? "white" : "#f8fafc"
-                      }}
-                    >
-                      <td style={{ padding: "12px 16px", textAlign: "center", color: "#94a3b8", fontWeight: "600" }}>
-                        {(currentPage - 1) * itemsPerPage + idx + 1}
-                      </td>
-                      <td style={{ padding: "12px 16px", fontWeight: "700", color: "#1d4ed8" }}>{row.noBerkas}</td>
-                      <td style={{ padding: "12px 16px" }}>{row.tglTerdaftar}</td>
-                      <td style={{ padding: "12px 16px", fontWeight: "600" }}>{row.jatuhtempo}</td>
-                      <td style={{ padding: "12px 16px" }}>{row.tglSelesai}</td>
-                      <td style={{ padding: "12px 16px", fontWeight: "500" }}>{row.namaKegiatan}</td>
-                      <td style={{ padding: "12px 16px", fontWeight: "600", textTransform: "uppercase" }}>{row.namaPemohon}</td>
-                      <td style={{ padding: "12px 16px", color: "#475569", fontWeight: "500" }}>{row.jabatan}</td>
-                      <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                        {getStatusBadge(row.status)}
-                      </td>
-                    </tr>
-                  ))
+                {/* 
+                  LOGIKA PERUBAHAN UTAMA: 
+                  Saat mode cetak (print), kita merender seluruh data hasil filter (filteredRincian) 
+                  sehingga semua baris data tercetak utuh secara berurutan.
+                  Saat tampilan layar biasa, tetap menggunakan data paginasi (paginatedRincian).
+                */}
+                {filteredRincian.length > 0 ? (
+                  filteredRincian.map((row, idx) => {
+                    const isVisibleOnPage = paginatedRincian.includes(row);
+                    const rowClassName = isVisibleOnPage ? "" : "print-hide-row-screen"; 
+                    // Kita manipulasi pakai CSS agar di layar mengikuti pagination, di cetak memunculkan semua.
+                    
+                    return (
+                      <tr 
+                        key={idx} 
+                        className={isVisibleOnPage ? "" : "print-table-row-hidden"}
+                        style={{ 
+                          borderBottom: "1px solid #f1f5f9",
+                          backgroundColor: idx % 2 === 0 ? "white" : "#f8fafc",
+                          display: isVisibleOnPage ? "table-row" : undefined 
+                        }}
+                      >
+                        <td style={{ padding: "12px 16px", textAlign: "center", color: "#94a3b8", fontWeight: "600" }}>
+                          {idx + 1}
+                        </td>
+                        <td style={{ padding: "12px 16px", fontWeight: "700", color: "#1d4ed8" }}>{row.noBerkas}</td>
+                        <td style={{ padding: "12px 16px" }}>{row.tglTerdaftar}</td>
+                        <td style={{ padding: "12px 16px", fontWeight: "600" }}>{row.jatuhtempo}</td>
+                        <td style={{ padding: "12px 16px" }}>{row.tglSelesai}</td>
+                        <td style={{ padding: "12px 16px", fontWeight: "500" }}>{row.namaKegiatan}</td>
+                        <td style={{ padding: "12px 16px", fontWeight: "600", textTransform: "uppercase" }}>{row.namaPemohon}</td>
+                        <td style={{ padding: "12px 16px", color: "#475569", fontWeight: "500" }}>{row.jabatan}</td>
+                        <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                          {getStatusBadge(row.status)}
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
                     <td colSpan="9" style={{ textAlign: "center", padding: "32px", color: "#94a3b8" }}>
@@ -713,9 +734,9 @@ export default function Home() {
             </table>
           </div>
 
-          {/* Navigasi Pagination */}
+          {/* Navigasi Pagination (Disembunyikan otomatis saat dicetak) */}
           {filteredRincian.length > itemsPerPage && (
-            <div className="no-print" style={{ padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
+            <div className="no-print print-hide-pagination" style={{ padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
               <span style={{ fontSize: "12px", color: "#64748b" }}>
                 Menampilkan {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredRincian.length)} dari {filteredRincian.length} berkas
               </span>
