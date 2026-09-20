@@ -433,7 +433,7 @@ export default function Home() {
               overflow: visible !important;
             }
             
-            /* Sembunyikan elemen dengan kelas no-print (Tombol cetak & Kotak upload) */
+            /* Sembunyikan elemen no-print (tombol cetak & kotak upload) */
             .no-print { display: none !important; }
             
             .screen-only-section { display: none !important; }
@@ -473,7 +473,7 @@ export default function Home() {
           }
         `}</style>
 
-        {/* Header Dashboard (Tetap ikutserta saat dicetak, tombol & kotak upload di dalamnya disembunyikan lewat class no-print) */}
+        {/* Header Dashboard */}
         <header style={{ marginBottom: "28px", backgroundColor: "#0f172a", color: "white", padding: "28px 32px", borderRadius: "16px", boxShadow: "0 10px 25px -5px rgba(15, 23, 42, 0.25)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "20px" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
@@ -492,7 +492,6 @@ export default function Home() {
           </div>
 
           <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-            {/* Tombol Cetak PDF (Disembunyikan saat dicetak) */}
             <button
               className="no-print"
               onClick={() => window.print()}
@@ -513,7 +512,6 @@ export default function Home() {
               🖨️ Cetak Laporan PDF
             </button>
 
-            {/* Kotak Upload Excel / JSON (Disembunyikan saat dicetak) */}
             <div className="no-print" style={{ backgroundColor: "#1e293b", border: "1px solid #334155", padding: "10px 16px", borderRadius: "12px" }}>
               <label style={{ display: "block", fontSize: "11px", color: "#cbd5e1", marginBottom: "4px", fontWeight: "600" }}>
                 📤 Upload Excel / JSON (Back Office)
@@ -529,8 +527,8 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Card KPI Metrics */}
-        <div className="no-print" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "20px", marginBottom: "28px" }}>
+        {/* Card KPI Metrics (Ikut Muncul Saat Dicetak) */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "20px", marginBottom: "28px" }}>
           
           <div 
             onClick={() => { setSelectedFilter("semua"); setCurrentPage(1); }}
@@ -607,7 +605,7 @@ export default function Home() {
 
         </div>
 
-        {/* Visualisasi Grafik */}
+        {/* Visualisasi Grafik (Disembunyikan saat cetak agar fokus ke tabel data) */}
         {dataLayanan.length > 0 && (
           <div className="no-print" style={{ display: "grid", gridTemplateColumns: topRedJabatan.length > 0 ? "2fr 1fr" : "1fr", gap: "20px", marginBottom: "28px" }}>
             
@@ -779,7 +777,7 @@ export default function Home() {
         </div>
 
 
-        {/* 2. TAMPILAN KHUSUS CETAK PDF (10 BERKAS PER HALAMAN / SLIDE SECARA OTOMATIS) */}
+        {/* 2. TAMPILAN KHUSUS CETAK PDF (10 BERKAS PER HALAMAN) */}
         <div className="print-only-section">
           {printablePagesData.map((chunk, pageIndex) => (
             <div key={pageIndex} className="print-page-container" style={{ marginBottom: "20px" }}>
@@ -793,6 +791,26 @@ export default function Home() {
                 <div style={{ fontSize: "10px", color: "#64748b", textAlign: "right" }}>
                   <p style={{ margin: 0 }}>Filter: {selectedFilter.toUpperCase()}</p>
                   <p style={{ margin: "2px 0 0 0" }}>Cetak: {formatCurrentTimestamp()}</p>
+                </div>
+              </div>
+
+              {/* Ringkasan KPI Mini di atas halaman cetak */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px", marginBottom: "12px" }}>
+                <div style={{ border: "1px solid #cbd5e1", padding: "6px 10px", borderRadius: "6px" }}>
+                  <div style={{ fontSize: "9px", color: "#64748b" }}>Total Berkas</div>
+                  <div style={{ fontSize: "14px", fontWeight: "800", color: "#0f172a" }}>{totalBerkas}</div>
+                </div>
+                <div style={{ border: "1px solid #a7f3d0", backgroundColor: "#ecfdf5", padding: "6px 10px", borderRadius: "6px" }}>
+                  <div style={{ fontSize: "9px", color: "#047857" }}>GREEN (Aman)</div>
+                  <div style={{ fontSize: "14px", fontWeight: "800", color: "#059669" }}>{totalSesuai}</div>
+                </div>
+                <div style={{ border: "1px solid #fde68a", backgroundColor: "#fffbeb", padding: "6px 10px", borderRadius: "6px" }}>
+                  <div style={{ fontSize: "9px", color: "#b45309" }}>YELLOW (Hari H)</div>
+                  <div style={{ fontSize: "14px", fontWeight: "800", color: "#d97706" }}>{totalHampir}</div>
+                </div>
+                <div style={{ border: "1px solid #fca5a5", backgroundColor: "#fef2f2", padding: "6px 10px", borderRadius: "6px" }}>
+                  <div style={{ fontSize: "9px", color: "#b91c1c" }}>RED (Terlambat)</div>
+                  <div style={{ fontSize: "14px", fontWeight: "800", color: "#dc2626" }}>{totalSudah}</div>
                 </div>
               </div>
 
