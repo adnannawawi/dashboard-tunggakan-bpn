@@ -443,7 +443,7 @@ export default function Home() {
               page-break-after: always;
               break-after: page;
               page-break-inside: avoid;
-              height: 100vh;
+              min-height: 100vh;
               box-sizing: border-box;
               display: flex;
               flex-direction: column;
@@ -527,7 +527,7 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Card KPI Metrics (Ikut Muncul Saat Dicetak) */}
+        {/* Card KPI Metrics */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "20px", marginBottom: "28px" }}>
           
           <div 
@@ -605,9 +605,9 @@ export default function Home() {
 
         </div>
 
-        {/* Visualisasi Grafik (Disembunyikan saat cetak agar fokus ke tabel data) */}
+        {/* Visualisasi Grafik (Tampil di Layar dan Ikut Tercetak di awal) */}
         {dataLayanan.length > 0 && (
-          <div className="no-print" style={{ display: "grid", gridTemplateColumns: topRedJabatan.length > 0 ? "2fr 1fr" : "1fr", gap: "20px", marginBottom: "28px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: topRedJabatan.length > 0 ? "2fr 1fr" : "1fr", gap: "20px", marginBottom: "28px" }}>
             
             <div className="card-box" style={{ backgroundColor: "white", padding: "24px", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
               <h3 style={{ margin: "0 0 16px 0", fontSize: "15px", color: "#0f172a", fontWeight: "700" }}>📊 Grafik Status per Jenis Layanan</h3>
