@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import dynamic from "next/dynamic";
 import * as XLSX from "xlsx";
 import {
   Chart as ChartJS,
@@ -25,9 +24,11 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("semua");
 
+  // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
+  // Format Jam Indonesia saat ini
   const formatCurrentTimestamp = () => {
     return `${new Date().toLocaleString("id-ID", {
       dateStyle: "medium",
@@ -35,6 +36,7 @@ export default function Home() {
     })} WIB`;
   };
 
+  // Helper Formatting & Parsing Tanggal
   const parseDate = (val) => {
     if (!val) return null;
     if (val instanceof Date && !isNaN(val)) {
@@ -75,7 +77,7 @@ export default function Home() {
       const date = new Date(Math.round((val - 25569) * 86400 * 1000));
       return date.toLocaleDateString("id-ID");
     }
-    return String(val).replace(/\s+/g, " ").trim();
+    return String(val).trim();
   };
 
   const calculateStatus = (jatuhtempoVal, tglSelesaiVal) => {
@@ -97,47 +99,40 @@ export default function Home() {
     return "RED";
   };
 
-  // PERBAIKAN: Fungsi pencarian field yang lebih toleran terhadap spasi, simbol, dan huruf besar/kecil
   const getFieldValue = (rowObj, possibleKeys) => {
     const keys = Object.keys(rowObj);
-    
-    // 1. Cek kecocokan persis setelah dibersihkan dari spasi/simbol
     for (const p of possibleKeys) {
-      const cleanP = p.toLowerCase().replace(/[^a-z0-9]/g, "");
       const exactKey = keys.find(
-        (k) => k.toLowerCase().replace(/[^a-z0-9]/g, "") === cleanP
+        (k) => k.toLowerCase().replace(/[^a-z0-9]/g, "") === p.toLowerCase().replace(/[^a-z0-9]/g, "")
       );
-      if (exactKey !== undefined && rowObj[exactKey] !== undefined && String(rowObj[exactKey]).trim() !== "") {
+      if (exactKey && rowObj[exactKey] !== undefined && String(rowObj[exactKey]).trim() !== "") {
         return rowObj[exactKey];
       }
     }
-
-    // 2. Cek jika key mengandung kata kunci
     for (const p of possibleKeys) {
-      const cleanP = p.toLowerCase().replace(/[^a-z0-9]/g, "");
       const matchedKey = keys.find((k) =>
-        k.toLowerCase().replace(/[^a-z0-9]/g, "").includes(cleanP)
+        k.toLowerCase().replace(/[^a-z0-9]/g, "").includes(p.toLowerCase().replace(/[^a-z0-9]/g, ""))
       );
-      if (matchedKey !== undefined && rowObj[matchedKey] !== undefined && String(rowObj[matchedKey]).trim() !== "") {
+      if (matchedKey && rowObj[matchedKey] !== undefined && String(rowObj[matchedKey]).trim() !== "") {
         return rowObj[matchedKey];
       }
     }
     return undefined;
   };
 
-  const generateAggregations = useCallback((list) => {
+  const generateAggregations = (list) => {
     const layananMap = {};
     const jabatanMap = {};
 
     list.forEach((item) => {
-      const lay = item.namaKegiatan !== "-" ? item.namaKegiatan.trim() : "Layanan Lainnya";
+      const lay = item.namaKegiatan !== "-" ? item.namaKegiatan : "Layanan Lainnya";
       if (!layananMap[lay]) layananMap[lay] = { kategori: lay, jumlah: 0, sesuai: 0, hampir: 0, sudah: 0 };
       layananMap[lay].jumlah += 1;
       if (item.status === "GREEN") layananMap[lay].sesuai += 1;
       else if (item.status === "YELLOW") layananMap[lay].hampir += 1;
       else if (item.status === "RED") layananMap[lay].sudah += 1;
 
-      const jab = item.jabatan !== "-" ? item.jabatan.trim() : "Petugas / Posisi Lain";
+      const jab = item.jabatan !== "-" ? item.jabatan : "Petugas / Posisi Lain";
       if (!jabatanMap[jab]) jabatanMap[jab] = { kategori: jab, jumlah: 0, sesuai: 0, hampir: 0, sudah: 0 };
       jabatanMap[jab].jumlah += 1;
       if (item.status === "GREEN") jabatanMap[jab].sesuai += 1;
@@ -147,24 +142,28 @@ export default function Home() {
 
     setDataLayanan(Object.values(layananMap));
     setDataJabatan(Object.values(jabatanMap));
-  }, []);
+  };
 
   const processExcelData = useCallback((rows) => {
     const rincianList = [];
 
     rows.forEach((row) => {
-      const nomor = getFieldValue(row, ["Nomor_Berkas", "No_Berkas", "Nomor", "NoBerkas", "No", "Nomor Berkas"]);
-      const tahun = getFieldValue(row, ["Tahun_Berkas", "Tahun", "Thn"]);
-      const tglTerdaftar = getFieldValue(row, ["Tanggal_Terdaftar", "Tgl_Terdaftar", "Terdaftar", "Tgl Terdaftar"]);
-      const jatuhtempo = getFieldValue(row, ["Jatuh_Tempo", "Jatuhtempo", "Tempo", "Jatuh Tempo"]);
-      const tglSelesai = getFieldValue(row, ["Tanggal_Selesai", "Tgl_Selesai", "Selesai", "Tgl Selesai"]);
+      const nomor = getFieldValue(row, ["Nomor_Berkas", "No_Berkas", "Nomor", "NoBerkas"]);
+      const tahun = getFieldValue(row, ["Tahun_Berkas", "Tahun"]);
+      const tglTerdaftar = getFieldValue(row, ["Tanggal_Terdaftar", "Tgl_Terdaftar", "Terdaftar"]);
+      const jatuhtempo = getFieldValue(row, ["Jatuh_Tempo", "Jatuhtempo", "Tempo"]);
+      const tglSelesai = getFieldValue(row, ["Tanggal_Selesai", "Tgl_Selesai", "Selesai"]);
       const tglDiserahkan = getFieldValue(row, ["Tanggal_Diserahkan", "Tgl_Diserahkan", "Dikirim"]);
       
-      const rawKegiatan = getFieldValue(row, ["Nama_Kegiatan", "Nama_Layanan", "Kegiatan", "Layanan", "Nama Kegiatan"]);
-      
+      const rawKegiatan = getFieldValue(row, ["Nama_Kegiatan", "Nama_Layanan", "Kegiatan", "Layanan"]);
       const rawPosisi = getFieldValue(row, [
-        "Petugas_Ukur", "PetugasUkur", "Nama_Petugas", "Petugas_Terakhir",
-        "Nama_Jabatan", "Jabatan", "Petugas", "Posisi_Terakhir", "Posisi_Berkas", "Posisi Terakhir"
+        "Posisi_Terakhir", 
+        "Posisi_Berkas", 
+        "Nama_Petugas", 
+        "Petugas_Terakhir", 
+        "Nama_Jabatan", 
+        "Jabatan", 
+        "Petugas"
       ]);
 
       let fullNoBerkas = formatValue(nomor);
@@ -174,6 +173,13 @@ export default function Home() {
 
       let cleanedKegiatan = formatValue(rawKegiatan);
       let cleanedPosisi = formatValue(rawPosisi);
+
+      if (
+        cleanedPosisi.toLowerCase() === "pengukuran dan pemetaan kadastral" ||
+        cleanedPosisi.toLowerCase() === "pengukuran dan pemetan kadastral"
+      ) {
+        cleanedPosisi = "-";
+      }
 
       if (fullNoBerkas !== "-") {
         const computedStatus = calculateStatus(jatuhtempo, tglSelesai);
@@ -185,7 +191,7 @@ export default function Home() {
           jatuhtempo: formatValue(jatuhtempo),
           tglSelesai: formatValue(tglSelesai),
           namaKegiatan: cleanedKegiatan,
-          namaPemohon: formatValue(getFieldValue(row, ["Nama_Pemohon", "Pemohon", "Nama Pemohon"])),
+          namaPemohon: formatValue(getFieldValue(row, ["Nama_Pemohon", "Pemohon"])),
           status: computedStatus,
           jabatan: cleanedPosisi,
         });
@@ -195,74 +201,60 @@ export default function Home() {
     setDataRincian(rincianList);
     generateAggregations(rincianList);
     setCurrentPage(1);
-  }, [generateAggregations]);
+  }, []);
 
+  // Memproses data TANPA memperbarui timestamp secara otomatis
   const processAndSetData = useCallback((rawJsonData, sourceName) => {
     if (!Array.isArray(rawJsonData) || rawJsonData.length === 0) return;
+
     setFileName(sourceName);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("atr_bpn_file_name", sourceName);
-      localStorage.setItem("atr_bpn_cached_data", JSON.stringify(rawJsonData));
-    }
+    localStorage.setItem("atr_bpn_file_name", sourceName);
+
     processExcelData(rawJsonData);
   }, [processExcelData]);
 
-  // Load Cache lokal terlebih dahulu agar data langsung muncul saat refresh
+  // AUTO-LOAD WEB DATA PADA INITIAL RENDER
   useEffect(() => {
-    const savedFileName = localStorage.getItem("atr_bpn_file_name");
-    const savedTimestamp = localStorage.getItem("atr_bpn_last_updated");
-    const cachedData = localStorage.getItem("atr_bpn_cached_data");
+    const fetchDataAuto = async () => {
+      const savedFileName = localStorage.getItem("atr_bpn_file_name");
+      const savedTimestamp = localStorage.getItem("atr_bpn_last_updated");
 
-    if (savedTimestamp) setLastUpdated(savedTimestamp);
-    if (savedFileName) setFileName(savedFileName);
-    
-    if (cachedData) {
-      try {
-        const parsed = JSON.parse(cachedData);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          processExcelData(parsed);
-        }
-      } catch (e) {
-        console.error("Gagal memuat cache lokal", e);
+      // Set timestamp lama yang ada di localStorage saat pertama kali dimuat/di-refresh
+      if (savedTimestamp) {
+        setLastUpdated(savedTimestamp);
       }
-    }
+      if (savedFileName) {
+        setFileName(savedFileName);
+      }
 
-    // Koneksi SSE dengan penanganan error aman
-    let eventSource;
-    try {
-      eventSource = new EventSource("/api/stream");
-      eventSource.onmessage = (event) => {
-        try {
-          const result = JSON.parse(event.data);
-          if (result && (Array.isArray(result) || result.data)) {
-            const rawData = Array.isArray(result) ? result : result.data;
-            if (rawData && rawData.length > 0) {
-              processAndSetData(rawData, savedFileName || "Auto-Sync Realtime Web ATR/BPN");
-              const newTime = result.lastUpdated || formatCurrentTimestamp();
-              setLastUpdated(newTime);
-              localStorage.setItem("atr_bpn_last_updated", newTime);
-            }
+      try {
+        const res = await fetch(`/api/ingest?t=${Date.now()}`); // Bypass cache HTTP
+        const result = await res.json();
+        
+        if (result.success && result.data && result.data.length > 0) {
+          // Olah data tanpa menimpa timestamp lama
+          processAndSetData(result.data, savedFileName || "Auto-Sync Web ATR/BPN");
+
+          // Timestamp HANYA diperbarui jika server mengembalikan data baru dengan atribut `lastUpdated`
+          if (result.isNewSync && result.lastUpdated) {
+            setLastUpdated(result.lastUpdated);
+            localStorage.setItem("atr_bpn_last_updated", result.lastUpdated);
           }
-        } catch (err) {
-          console.error("Gagal memproses stream SSE:", err);
         }
-      };
-      eventSource.onerror = () => {
-        eventSource.close();
-      };
-    } catch (e) {
-      // Abaikan jika endpoint stream tidak tersedia
-    }
-
-    return () => {
-      if (eventSource) eventSource.close();
+      } catch (err) {
+        console.error("Gagal mengambil data otomatis:", err);
+      }
     };
-  }, [processExcelData, processAndSetData]);
 
+    fetchDataAuto();
+  }, [processAndSetData]);
+
+  // UPLOAD FILE MANUAL (EXCEL / JSON)
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
+    // KETIKA USER MANUAL UPLOAD -> Timestamp Baru Terbuat
     const newTimestamp = formatCurrentTimestamp();
     setLastUpdated(newTimestamp);
     localStorage.setItem("atr_bpn_last_updated", newTimestamp);
@@ -296,6 +288,7 @@ export default function Home() {
     }
   };
 
+  // Metrics KPI
   const totalBerkas = dataRincian.length;
   const totalSesuai = dataRincian.filter((i) => i.status === "GREEN").length;
   const totalHampir = dataRincian.filter((i) => i.status === "YELLOW").length;
@@ -305,6 +298,7 @@ export default function Home() {
   const pctHampir = totalBerkas > 0 ? Math.round((totalHampir / totalBerkas) * 100) : 0;
   const pctSudah = totalBerkas > 0 ? Math.round((totalSudah / totalBerkas) * 100) : 0;
 
+  // Filtered & Paginated Table Data
   const filteredRincian = useMemo(() => {
     return dataRincian.filter((item) => {
       let matchesFilter = true;
@@ -329,6 +323,7 @@ export default function Home() {
     return filteredRincian.slice(start, start + itemsPerPage);
   }, [filteredRincian, currentPage]);
 
+  // Chart Layanan
   const chartDataLayanan = {
     labels: dataLayanan.map((item) => item.kategori),
     datasets: [
@@ -346,23 +341,33 @@ export default function Home() {
       x: { stacked: true, grid: { color: "#f1f5f9" } },
       y: { stacked: true, grid: { display: false } },
     },
-    plugins: { legend: { position: "top" } },
+    plugins: {
+      legend: { position: "top" },
+    },
   };
 
+  // Chart Bottleneck Posisi Terakhir
   const topRedJabatan = useMemo(() => {
-    return [...dataJabatan].filter((j) => j.sudah > 0).sort((a, b) => b.sudah - a.sudah).slice(0, 10);
+    return [...dataJabatan]
+      .filter((j) => j.sudah > 0)
+      .sort((a, b) => b.sudah - a.sudah)
+      .slice(0, 5);
   }, [dataJabatan]);
 
   const chartDataJabatan = {
     labels: topRedJabatan.map((item) => item.kategori),
-    datasets: [{ label: "Berkas Terlambat (RED)", data: topRedJabatan.map((item) => item.sudah), backgroundColor: "#dc2626", borderRadius: 4 }],
+    datasets: [
+      { label: "Berkas Terlambat (RED)", data: topRedJabatan.map((item) => item.sudah), backgroundColor: "#dc2626", borderRadius: 4 },
+    ],
   };
 
   const chartOptionsJabatan = {
     indexAxis: "y",
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
+    plugins: {
+      legend: { display: false },
+    },
     scales: {
       x: { grid: { color: "#f1f5f9" } },
       y: { grid: { display: false } },
@@ -392,28 +397,85 @@ export default function Home() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#f1f5f9", padding: "32px 20px", fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ minHeight: "100vh", backgroundColor: "#f1f5f9", padding: "32px 20px", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
       <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
         
-        <header style={{ marginBottom: "28px", backgroundColor: "#0f172a", color: "white", padding: "28px 32px", borderRadius: "16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "20px" }}>
+        {/* CSS Cetak Multi-Halaman */}
+        <style jsx global>{`
+          @media print {
+            body, html { 
+              background: white !important; 
+              padding: 0 !important; 
+              margin: 0 !important;
+              height: auto !important;
+              overflow: visible !important;
+            }
+            .no-print { display: none !important; }
+            .print-container { 
+              width: 100% !important; 
+              max-width: 100% !important; 
+              overflow: visible !important; 
+              position: static !important;
+            }
+            .card-box { 
+              box-shadow: none !important; 
+              border: 1px solid #cbd5e1 !important; 
+              overflow: visible !important;
+              page-break-inside: auto;
+            }
+            .table-responsive-wrapper {
+              overflow: visible !important;
+              height: auto !important;
+            }
+            table { 
+              page-break-inside: auto;
+              width: 100% !important;
+            }
+            tr { 
+              page-break-inside: avoid; 
+              page-break-after: auto;
+            }
+            thead { 
+              display: table-header-group; 
+            }
+          }
+        `}</style>
+
+        {/* Header Dashboard */}
+        <header style={{ marginBottom: "28px", backgroundColor: "#0f172a", color: "white", padding: "28px 32px", borderRadius: "16px", boxShadow: "0 10px 25px -5px rgba(15, 23, 42, 0.25)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "20px" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
-              <span style={{ backgroundColor: "#1e293b", color: "#38bdf8", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: "600" }}>
+              <div style={{ display: "inline-block", backgroundColor: "#1e293b", color: "#38bdf8", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: "600" }}>
                 Sistem Informasi Pertanahan
-              </span>
+              </div>
               {lastUpdated && (
-                <span style={{ fontSize: "11px", color: "#94a3b8", display: "flex", alignItems: "center", gap: "4px" }}>
+                <div style={{ fontSize: "11px", color: "#94a3b8", display: "flex", alignItems: "center", gap: "4px" }}>
                   <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#10b981", display: "inline-block" }}></span>
                   Last Update: {lastUpdated}
-                </span>
+                </div>
               )}
             </div>
-            <h1 style={{ margin: 0, fontSize: "24px", fontWeight: "700" }}>Dashboard Eksekutif Monitoring Tunggakan Berkas</h1>
+            <h1 style={{ margin: 0, fontSize: "24px", fontWeight: "700", letterSpacing: "-0.5px" }}>Dashboard Eksekutif Monitoring Tunggakan Berkas</h1>
             <p style={{ margin: "4px 0 0 0", color: "#94a3b8", fontSize: "15px" }}>Kantor Pertanahan Kabupaten Kotawaringin Barat</p>
           </div>
 
-          <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-            <button onClick={() => window.print()} style={{ backgroundColor: "#2563eb", color: "white", border: "none", padding: "10px 16px", borderRadius: "10px", fontSize: "13px", fontWeight: "600", cursor: "pointer" }}>
+          <div className="no-print" style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+            <button
+              onClick={() => window.print()}
+              style={{
+                backgroundColor: "#2563eb",
+                color: "white",
+                border: "none",
+                padding: "10px 16px",
+                borderRadius: "10px",
+                fontSize: "13px",
+                fontWeight: "600",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px"
+              }}
+            >
               🖨️ Cetak Laporan PDF
             </button>
 
@@ -425,42 +487,120 @@ export default function Home() {
               {fileName && (
                 <div style={{ margin: "4px 0 0 0", fontSize: "11px", color: "#38bdf8", fontWeight: "500" }}>
                   <p style={{ margin: 0 }}>✓ File dimuat: {fileName}</p>
+                  {lastUpdated && <p style={{ margin: "2px 0 0 0", color: "#94a3b8", fontSize: "10px" }}>🕒 Sync: {lastUpdated}</p>}
                 </div>
               )}
             </div>
           </div>
         </header>
 
-        {/* Metrics KPI */}
+        {/* Card KPI Metrics */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "20px", marginBottom: "28px" }}>
-          <div onClick={() => { setSelectedFilter("semua"); setCurrentPage(1); }} style={{ backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "semua" ? "2px solid #2563eb" : "1px solid #e2e8f0", cursor: "pointer" }}>
-            <span style={{ color: "#64748b", fontSize: "13px", fontWeight: "600" }}>Total Berkas</span>
+          
+          <div 
+            onClick={() => { setSelectedFilter("semua"); setCurrentPage(1); }}
+            className="card-box"
+            style={{ 
+              backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "semua" ? "2px solid #2563eb" : "1px solid #e2e8f0",
+              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", cursor: "pointer"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", color: "#64748b", fontSize: "13px", fontWeight: "600" }}>
+              <span>Total Berkas</span>
+              <span>📦</span>
+            </div>
             <h2 style={{ margin: "10px 0 8px 0", fontSize: "32px", fontWeight: "800", color: "#0f172a" }}>{totalBerkas}</h2>
             <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>Semua berkas yang terdata</p>
           </div>
 
-          <div onClick={() => { setSelectedFilter("sesuai"); setCurrentPage(1); }} style={{ backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "sesuai" ? "2px solid #10b981" : "1px solid #e2e8f0", cursor: "pointer" }}>
-            <span style={{ color: "#047857", fontSize: "13px", fontWeight: "600" }}>Belum Jatuh Tempo (GREEN)</span>
+          <div 
+            onClick={() => { setSelectedFilter("sesuai"); setCurrentPage(1); }}
+            className="card-box"
+            style={{ 
+              backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "sesuai" ? "2px solid #10b981" : "1px solid #e2e8f0",
+              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", cursor: "pointer"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", color: "#047857", fontSize: "13px", fontWeight: "600" }}>
+              <span>Belum Jatuh Tempo (GREEN)</span>
+              <span>🟢</span>
+            </div>
             <h2 style={{ margin: "10px 0 8px 0", fontSize: "32px", fontWeight: "800", color: "#059669" }}>{totalSesuai}</h2>
+            <div style={{ width: "100%", backgroundColor: "#e2e8f0", height: "6px", borderRadius: "3px", overflow: "hidden" }}>
+              <div style={{ width: `${pctSesuai}%`, backgroundColor: "#10b981", height: "100%" }}></div>
+            </div>
             <p style={{ margin: "6px 0 0 0", fontSize: "12px", color: "#64748b" }}>{pctSesuai}% dari total berkas</p>
           </div>
 
-          <div onClick={() => { setSelectedFilter("hampir"); setCurrentPage(1); }} style={{ backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "hampir" ? "2px solid #f59e0b" : "1px solid #e2e8f0", cursor: "pointer" }}>
-            <span style={{ color: "#b45309", fontSize: "13px", fontWeight: "600" }}>Hampir Jatuh Tempo (YELLOW)</span>
+          <div 
+            onClick={() => { setSelectedFilter("hampir"); setCurrentPage(1); }}
+            className="card-box"
+            style={{ 
+              backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "hampir" ? "2px solid #f59e0b" : "1px solid #e2e8f0",
+              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", cursor: "pointer"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", color: "#b45309", fontSize: "13px", fontWeight: "600" }}>
+              <span>Hampir Jatuh Tempo (YELLOW)</span>
+              <span>🟡</span>
+            </div>
             <h2 style={{ margin: "10px 0 8px 0", fontSize: "32px", fontWeight: "800", color: "#d97706" }}>{totalHampir}</h2>
+            <div style={{ width: "100%", backgroundColor: "#e2e8f0", height: "6px", borderRadius: "3px", overflow: "hidden" }}>
+              <div style={{ width: `${pctHampir}%`, backgroundColor: "#f59e0b", height: "100%" }}></div>
+            </div>
             <p style={{ margin: "6px 0 0 0", fontSize: "12px", color: "#64748b" }}>{pctHampir}% jatuh tempo hari ini</p>
           </div>
 
-          <div onClick={() => { setSelectedFilter("sudah"); setCurrentPage(1); }} style={{ backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "sudah" ? "2px solid #ef4444" : "1px solid #e2e8f0", cursor: "pointer" }}>
-            <span style={{ color: "#b91c1c", fontSize: "13px", fontWeight: "600" }}>Terlambat (RED)</span>
+          <div 
+            onClick={() => { setSelectedFilter("sudah"); setCurrentPage(1); }}
+            className="card-box"
+            style={{ 
+              backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "sudah" ? "2px solid #ef4444" : "1px solid #e2e8f0",
+              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", cursor: "pointer"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", color: "#b91c1c", fontSize: "13px", fontWeight: "600" }}>
+              <span>Terlambat (RED)</span>
+              <span>🔴</span>
+            </div>
             <h2 style={{ margin: "10px 0 8px 0", fontSize: "32px", fontWeight: "800", color: "#dc2626" }}>{totalSudah}</h2>
+            <div style={{ width: "100%", backgroundColor: "#e2e8f0", height: "6px", borderRadius: "3px", overflow: "hidden" }}>
+              <div style={{ width: `${pctSudah}%`, backgroundColor: "#ef4444", height: "100%" }}></div>
+            </div>
             <p style={{ margin: "6px 0 0 0", fontSize: "12px", color: "#64748b" }}>{pctSudah}% melebihi jatuh tempo</p>
           </div>
+
         </div>
 
+        {/* Visualisasi Grafik */}
+        {dataLayanan.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: topRedJabatan.length > 0 ? "2fr 1fr" : "1fr", gap: "20px", marginBottom: "28px" }}>
+            
+            <div className="card-box" style={{ backgroundColor: "white", padding: "24px", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
+              <h3 style={{ margin: "0 0 16px 0", fontSize: "15px", color: "#0f172a", fontWeight: "700" }}>📊 Grafik Status per Jenis Layanan</h3>
+              <div style={{ height: "300px" }}>
+                <Bar data={chartDataLayanan} options={chartOptionsLayanan} />
+              </div>
+            </div>
+
+            {topRedJabatan.length > 0 && (
+              <div className="card-box" style={{ backgroundColor: "white", padding: "24px", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
+                <h3 style={{ margin: "0 0 6px 0", fontSize: "15px", color: "#991b1b", fontWeight: "700" }}>⚠️ Top Bottleneck</h3>
+                <p style={{ margin: "0 0 16px 0", fontSize: "12px", color: "#64748b" }}>Petugas dengan berkas RED terbanyak</p>
+                <div style={{ height: "240px" }}>
+                  <Bar data={chartDataJabatan} options={chartOptionsJabatan} />
+                </div>
+              </div>
+            )}
+
+          </div>
+        )}
+
         {/* Tabel Data */}
-        <div style={{ backgroundColor: "white", borderRadius: "14px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
-          <div style={{ padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px", borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
+        <div className="card-box print-container" style={{ backgroundColor: "white", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
+          
+          <div className="no-print" style={{ padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px", borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
+            
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               {[
                 { id: "semua", label: "Semua Berkas" },
@@ -493,44 +633,63 @@ export default function Home() {
               placeholder="🔍 Cari No Berkas, Pemohon, Layanan, Posisi..."
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              style={{ padding: "8px 14px", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "13px", minWidth: "280px", outline: "none" }}
+              style={{
+                padding: "8px 14px",
+                border: "1px solid #cbd5e1",
+                borderRadius: "8px",
+                fontSize: "13px",
+                minWidth: "280px",
+                outline: "none"
+              }}
             />
           </div>
 
-          <div style={{ overflowX: "auto" }}>
+          <div className="table-responsive-wrapper">
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", color: "#334155" }}>
               <thead>
-                <tr style={{ backgroundColor: "#f1f5f9", borderBottom: "1px solid #cbd5e1", textTransform: "uppercase", fontSize: "11px" }}>
-                  <th style={{ padding: "14px 16px", textAlign: "center", width: "40px", color: "#1e3a8a" }}>#</th>
-                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a" }}>Nomor Berkas</th>
-                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a" }}>Tgl Terdaftar</th>
-                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a" }}>Jatuh Tempo</th>
-                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a" }}>Tgl Selesai</th>
-                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a" }}>Nama Kegiatan</th>
-                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a" }}>Nama Pemohon</th>
-                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a" }}>Posisi Terakhir / Petugas</th>
-                  <th style={{ padding: "14px 16px", textAlign: "center", color: "#1e3a8a" }}>Status</th>
+                <tr style={{ backgroundColor: "#f1f5f9", borderBottom: "1px solid #cbd5e1", textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.5px" }}>
+                  <th style={{ padding: "14px 16px", textAlign: "center", width: "40px", color: "#1e3a8a", fontWeight: "700" }}>#</th>
+                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Nomor Berkas</th>
+                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Tgl Terdaftar</th>
+                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Jatuh Tempo</th>
+                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Tgl Selesai</th>
+                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Nama Kegiatan</th>
+                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Nama Pemohon</th>
+                  <th style={{ padding: "14px 16px", textAlign: "left", color: "#1e3a8a", fontWeight: "700" }}>Posisi Terakhir</th>
+                  <th style={{ padding: "14px 16px", textAlign: "center", color: "#1e3a8a", fontWeight: "700" }}>Status</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedRincian.length > 0 ? (
                   paginatedRincian.map((row, idx) => (
-                    <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9", backgroundColor: idx % 2 === 0 ? "white" : "#f8fafc" }}>
-                      <td style={{ padding: "12px 16px", textAlign: "center", color: "#94a3b8" }}>{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                    <tr 
+                      key={idx} 
+                      style={{ 
+                        borderBottom: "1px solid #f1f5f9",
+                        backgroundColor: idx % 2 === 0 ? "white" : "#f8fafc"
+                      }}
+                    >
+                      <td style={{ padding: "12px 16px", textAlign: "center", color: "#94a3b8", fontWeight: "600" }}>
+                        {(currentPage - 1) * itemsPerPage + idx + 1}
+                      </td>
                       <td style={{ padding: "12px 16px", fontWeight: "700", color: "#1d4ed8" }}>{row.noBerkas}</td>
                       <td style={{ padding: "12px 16px" }}>{row.tglTerdaftar}</td>
                       <td style={{ padding: "12px 16px", fontWeight: "600" }}>{row.jatuhtempo}</td>
                       <td style={{ padding: "12px 16px" }}>{row.tglSelesai}</td>
-                      <td style={{ padding: "12px 16px" }}>{row.namaKegiatan}</td>
+                      <td style={{ padding: "12px 16px", fontWeight: "500" }}>{row.namaKegiatan}</td>
                       <td style={{ padding: "12px 16px", fontWeight: "600", textTransform: "uppercase" }}>{row.namaPemohon}</td>
-                      <td style={{ padding: "12px 16px", color: "#475569" }}>{row.jabatan}</td>
-                      <td style={{ padding: "12px 16px", textAlign: "center" }}>{getStatusBadge(row.status)}</td>
+                      <td style={{ padding: "12px 16px", color: "#475569", fontWeight: "500" }}>{row.jabatan}</td>
+                      <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                        {getStatusBadge(row.status)}
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
                     <td colSpan="9" style={{ textAlign: "center", padding: "32px", color: "#94a3b8" }}>
-                      {dataRincian.length === 0 ? "Belum ada data. Silakan unggah file Excel/JSON melalui tombol di kanan atas." : "Tidak ditemukan data yang cocok dengan filter."}
+                      {dataRincian.length === 0 
+                        ? "Memuat data..." 
+                        : "Tidak ditemukan data yang cocok dengan kriteria filter"}
                     </td>
                   </tr>
                 )}
@@ -538,22 +697,50 @@ export default function Home() {
             </table>
           </div>
 
+          {/* Navigasi Pagination */}
           {filteredRincian.length > itemsPerPage && (
-            <div style={{ padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
+            <div className="no-print" style={{ padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
               <span style={{ fontSize: "12px", color: "#64748b" }}>
                 Menampilkan {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredRincian.length)} dari {filteredRincian.length} berkas
               </span>
               <div style={{ display: "flex", gap: "8px" }}>
-                <button disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)} style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", backgroundColor: currentPage === 1 ? "#f1f5f9" : "white", cursor: currentPage === 1 ? "not-allowed" : "pointer" }}>
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => p - 1)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "6px",
+                    border: "1px solid #cbd5e1",
+                    backgroundColor: currentPage === 1 ? "#f1f5f9" : "white",
+                    color: currentPage === 1 ? "#94a3b8" : "#334155",
+                    cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                    fontSize: "12px"
+                  }}
+                >
                   ← Sebelumnya
                 </button>
-                <span style={{ padding: "6px 12px", fontSize: "12px", fontWeight: "600" }}>Halaman {currentPage} dari {totalPages}</span>
-                <button disabled={currentPage === totalPages} onClick={() => setCurrentPage((p) => p + 1)} style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", backgroundColor: currentPage === totalPages ? "#f1f5f9" : "white", cursor: currentPage === totalPages ? "not-allowed" : "pointer" }}>
+                <span style={{ padding: "6px 12px", fontSize: "12px", fontWeight: "600", color: "#1e293b" }}>
+                  Halaman {currentPage} dari {totalPages}
+                </span>
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "6px",
+                    border: "1px solid #cbd5e1",
+                    backgroundColor: currentPage === totalPages ? "#f1f5f9" : "white",
+                    color: currentPage === totalPages ? "#94a3b8" : "#334155",
+                    cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+                    fontSize: "12px"
+                  }}
+                >
                   Berikutnya →
                 </button>
               </div>
             </div>
           )}
+
         </div>
 
       </div>
