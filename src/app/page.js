@@ -27,6 +27,17 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 const CENTER_LAT = -2.6833;
 const CENTER_LNG = 111.6167;
 
+// Daftar Layanan Prioritas
+const LAYANAN_PRIORITAS = [
+  "pengecekan sertipikat",
+  "surat keterangan pendaftaran tanah",
+  "hak tanggungan",
+  "roya",
+  "peralihan hak",
+  "pendaftaran surat keputusan",
+  "perubahan hak",
+];
+
 export default function Home() {
   const [dataRincian, setDataRincian] = useState([]);
   const [dataJabatan, setDataJabatan] = useState([]);
@@ -207,6 +218,10 @@ export default function Home() {
 
       if (fullNoBerkas !== "-") {
         const computedStatus = calculateStatus(jatuhtempo, tglSelesai);
+        
+        // Cek apakah kegiatan termasuk dalam daftar Layanan Prioritas
+        const lowerKegiatan = cleanedKegiatan.toLowerCase();
+        const isPrioritas = LAYANAN_PRIORITAS.some((p) => lowerKegiatan.includes(p));
 
         rincianList.push({
           noBerkas: fullNoBerkas,
@@ -218,6 +233,7 @@ export default function Home() {
           namaPemohon: formatValue(getFieldValue(row, ["Nama_Pemohon", "Pemohon"])),
           status: computedStatus,
           jabatan: cleanedPosisi,
+          isPrioritas: isPrioritas,
           lat: latVal,
           lng: lngVal,
         });
@@ -317,6 +333,7 @@ export default function Home() {
   };
 
   const totalBerkas = dataRincian.length;
+  const totalPrioritas = dataRincian.filter((i) => i.isPrioritas).length;
   const totalSesuai = dataRincian.filter((i) => i.status === "GREEN").length;
   const totalHampir = dataRincian.filter((i) => i.status === "YELLOW").length;
   const totalSudah = dataRincian.filter((i) => i.status === "RED").length;
@@ -328,6 +345,7 @@ export default function Home() {
   const filteredRincian = useMemo(() => {
     return dataRincian.filter((item) => {
       let matchesFilter = true;
+      if (selectedFilter === "prioritas") matchesFilter = item.isPrioritas;
       if (selectedFilter === "sesuai") matchesFilter = item.status === "GREEN";
       if (selectedFilter === "hampir") matchesFilter = item.status === "YELLOW";
       if (selectedFilter === "sudah") matchesFilter = item.status === "RED";
@@ -571,7 +589,7 @@ export default function Home() {
         </header>
 
         {/* Card KPI Metrics */}
-        <div className="no-print" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "20px", marginBottom: "28px" }}>
+        <div className="no-print" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px", marginBottom: "28px" }}>
           <div 
             onClick={() => { setSelectedFilter("semua"); setCurrentPage(1); }}
             className="card-box"
@@ -586,6 +604,22 @@ export default function Home() {
             </div>
             <h2 style={{ margin: "10px 0 8px 0", fontSize: "32px", fontWeight: "800", color: "#0f172a" }}>{totalBerkas}</h2>
             <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>Semua berkas yang terdata</p>
+          </div>
+
+          <div 
+            onClick={() => { setSelectedFilter("prioritas"); setCurrentPage(1); }}
+            className="card-box"
+            style={{ 
+              backgroundColor: "white", padding: "22px", borderRadius: "14px", border: selectedFilter === "prioritas" ? "2px solid #8b5cf6" : "1px solid #e2e8f0",
+              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", cursor: "pointer"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", color: "#6d28d9", fontSize: "13px", fontWeight: "600" }}>
+              <span>Layanan Prioritas</span>
+              <span>⭐</span>
+            </div>
+            <h2 style={{ margin: "10px 0 8px 0", fontSize: "32px", fontWeight: "800", color: "#7c3aed" }}>{totalPrioritas}</h2>
+            <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>{totalBerkas > 0 ? Math.round((totalPrioritas / totalBerkas) * 100) : 0}% dari total berkas</p>
           </div>
 
           <div 
@@ -700,7 +734,7 @@ export default function Home() {
                         <div style={{ color: "#0f172a", fontSize: "12px", fontFamily: "sans-serif" }}>
                           <strong style={{ color: "#2563eb" }}>No Berkas: {item.noBerkas}</strong><br />
                           <b>Pemohon:</b> {item.namaPemohon}<br />
-                          <b>Kegiatan:</b> {item.namaKegiatan}<br />
+                          <b>Kegiatan:</b> {item.namaKegiatan} {item.isPrioritas && <span style={{ color: "#7c3aed", fontWeight: "bold" }}>(⭐ Prioritas)</span>}<br />
                           <b>Posisi:</b> {item.jabatan}<br />
                           <b>Status:</b> <span style={{ color, fontWeight: "bold" }}>{item.status}</span>
                         </div>
@@ -748,6 +782,7 @@ export default function Home() {
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               {[
                 { id: "semua", label: "Semua Berkas" },
+                { id: "prioritas", label: "⭐ Layanan Prioritas" },
                 { id: "sesuai", label: "🟢 GREEN (Aman)" },
                 { id: "hampir", label: "🟡 YELLOW (Hari H)" },
                 { id: "sudah", label: "🔴 RED (Terlambat)" },
@@ -761,9 +796,9 @@ export default function Home() {
                     fontSize: "12px",
                     fontWeight: "600",
                     border: "1px solid",
-                    borderColor: selectedFilter === tab.id ? "#2563eb" : "#cbd5e1",
-                    backgroundColor: selectedFilter === tab.id ? "#eff6ff" : "white",
-                    color: selectedFilter === tab.id ? "#1d4ed8" : "#475569",
+                    borderColor: selectedFilter === tab.id ? (tab.id === "prioritas" ? "#7c3aed" : "#2563eb") : "#cbd5e1",
+                    backgroundColor: selectedFilter === tab.id ? (tab.id === "prioritas" ? "#f3e8ff" : "#eff6ff") : "white",
+                    color: selectedFilter === tab.id ? (tab.id === "prioritas" ? "#6d28d9" : "#1d4ed8") : "#475569",
                     cursor: "pointer",
                   }}
                 >
@@ -821,7 +856,14 @@ export default function Home() {
                       <td style={{ padding: "12px 16px" }}>{row.tglTerdaftar}</td>
                       <td style={{ padding: "12px 16px", fontWeight: "600" }}>{row.jatuhtempo}</td>
                       <td style={{ padding: "12px 16px" }}>{row.tglSelesai}</td>
-                      <td style={{ padding: "12px 16px", fontWeight: "500" }}>{row.namaKegiatan}</td>
+                      <td style={{ padding: "12px 16px", fontWeight: "500" }}>
+                        {row.namaKegiatan}{" "}
+                        {row.isPrioritas && (
+                          <span style={{ backgroundColor: "#f3e8ff", color: "#6d28d9", border: "1px solid #ddd6fe", padding: "2px 6px", borderRadius: "10px", fontSize: "10px", fontWeight: "700", marginLeft: "6px" }}>
+                            ⭐ Prioritas
+                          </span>
+                        )}
+                      </td>
                       <td style={{ padding: "12px 16px", fontWeight: "600", textTransform: "uppercase" }}>{row.namaPemohon}</td>
                       <td style={{ padding: "12px 16px", color: "#475569", fontWeight: "500" }}>{row.jabatan}</td>
                       <td style={{ padding: "12px 16px", textAlign: "center" }}>
@@ -866,7 +908,9 @@ export default function Home() {
                     <td style={{ padding: "5px 8px" }}>{row.tglTerdaftar}</td>
                     <td style={{ padding: "5px 8px" }}>{row.jatuhtempo}</td>
                     <td style={{ padding: "5px 8px" }}>{row.tglSelesai}</td>
-                    <td style={{ padding: "5px 8px" }}>{row.namaKegiatan}</td>
+                    <td style={{ padding: "5px 8px" }}>
+                      {row.namaKegiatan} {row.isPrioritas ? "(⭐ Prioritas)" : ""}
+                    </td>
                     <td style={{ padding: "5px 8px", textTransform: "uppercase" }}>{row.namaPemohon}</td>
                     <td style={{ padding: "5px 8px" }}>{row.jabatan}</td>
                     <td style={{ padding: "5px 8px", textAlign: "center" }}>
