@@ -420,7 +420,6 @@ export default function Home() {
       <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
         
         <style jsx global>{`
-          /* Sembunyikan elemen cetak khusus saat mode layar biasa */
           .print-only-section {
             display: none;
           }
@@ -433,10 +432,10 @@ export default function Home() {
               height: auto !important;
               overflow: visible !important;
             }
-            /* Hanya sembunyikan tombol cetak dan form upload file */
+            
+            /* Sembunyikan elemen dengan kelas no-print (Tombol cetak & Kotak upload) */
             .no-print { display: none !important; }
             
-            /* Tampilkan tabel perulangan khusus cetak */
             .screen-only-section { display: none !important; }
             .print-only-section { display: block !important; }
 
@@ -474,7 +473,7 @@ export default function Home() {
           }
         `}</style>
 
-        {/* Header Dashboard */}
+        {/* Header Dashboard (Tetap ikutserta saat dicetak, tombol & kotak upload di dalamnya disembunyikan lewat class no-print) */}
         <header style={{ marginBottom: "28px", backgroundColor: "#0f172a", color: "white", padding: "28px 32px", borderRadius: "16px", boxShadow: "0 10px 25px -5px rgba(15, 23, 42, 0.25)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "20px" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
@@ -493,7 +492,7 @@ export default function Home() {
           </div>
 
           <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-            {/* Tombol Cetak PDF disembunyikan saat dicetak menggunakan kelas no-print */}
+            {/* Tombol Cetak PDF (Disembunyikan saat dicetak) */}
             <button
               className="no-print"
               onClick={() => window.print()}
@@ -514,7 +513,7 @@ export default function Home() {
               🖨️ Cetak Laporan PDF
             </button>
 
-            {/* Kotak Upload Excel / JSON disembunyikan saat dicetak menggunakan kelas no-print */}
+            {/* Kotak Upload Excel / JSON (Disembunyikan saat dicetak) */}
             <div className="no-print" style={{ backgroundColor: "#1e293b", border: "1px solid #334155", padding: "10px 16px", borderRadius: "12px" }}>
               <label style={{ display: "block", fontSize: "11px", color: "#cbd5e1", marginBottom: "4px", fontWeight: "600" }}>
                 📤 Upload Excel / JSON (Back Office)
