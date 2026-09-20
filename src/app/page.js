@@ -431,6 +431,91 @@ export default function Home() {
       />
 
       <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
+        
+        <style jsx global>{`
+          /* Tampilan Normal (Layar Web) */
+          .only-print { display: none !important; }
+
+          /* Tampilan Khusus Cetak PDF */
+          @media print {
+            @page {
+              size: A4 landscape;
+              margin: 8mm;
+            }
+
+            /* Force Reset Overflow Semua Element */
+            html, body, #__next, main, div {
+              height: auto !important;
+              min-height: 0 !important;
+              max-height: none !important;
+              overflow: visible !important;
+              position: static !important;
+              float: none !important;
+            }
+
+            body { 
+              background: white !important; 
+              padding: 0 !important; 
+              margin: 0 !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+
+            /* Sembunyikan Komponen Non-Laporan saat Cetak */
+            .no-print, 
+            header,
+            .leaflet-container, 
+            .leaflet-pane,
+            canvas,
+            svg { 
+              display: none !important; 
+              height: 0 !important;
+              max-height: 0 !important;
+              opacity: 0 !important;
+              margin: 0 !important;
+              padding: 0 !important;
+            }
+
+            /* Tampilkan Tabel Cetak */
+            .only-print { 
+              display: block !important; 
+              width: 100% !important;
+              overflow: visible !important;
+            }
+
+            .print-container { 
+              width: 100% !important; 
+              max-width: 100% !important; 
+              overflow: visible !important; 
+              position: static !important;
+              box-shadow: none !important;
+              border: none !important;
+              background: transparent !important;
+              padding: 0 !important;
+              margin: 0 !important;
+            }
+
+            .only-print table { 
+              width: 100% !important;
+              border-collapse: collapse !important;
+              page-break-after: auto !important;
+            }
+
+            .only-print tr { 
+              page-break-inside: avoid !important; 
+              page-break-after: auto !important;
+            }
+
+            .only-print thead { 
+              display: table-header-group !important; 
+            }
+
+            .only-print th, .only-print td {
+              padding: 6px 8px !important;
+              font-size: 9px !important;
+            }
+          }
+        `}</style>
 
         {/* Header Dashboard */}
         <header className="no-print" style={{ marginBottom: "28px", backgroundColor: "#0f172a", color: "white", padding: "28px 32px", borderRadius: "16px", boxShadow: "0 10px 25px -5px rgba(15, 23, 42, 0.25)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "20px" }}>
