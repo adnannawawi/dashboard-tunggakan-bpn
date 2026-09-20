@@ -35,13 +35,12 @@ export default function Home() {
   const [lastUpdated, setLastUpdated] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("semua");
-  const [basemap, setBasemap] = useState("osm"); // 'osm' | 'satellite'
+  const [basemap, setBasemap] = useState("osm");
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Format Jam Indonesia saat ini
   const formatCurrentTimestamp = () => {
     return `${new Date().toLocaleString("id-ID", {
       dateStyle: "medium",
@@ -49,7 +48,6 @@ export default function Home() {
     })} WIB`;
   };
 
-  // Helper Formatting & Parsing Tanggal
   const parseDate = (val) => {
     if (!val) return null;
     if (val instanceof Date && !isNaN(val)) {
@@ -182,7 +180,6 @@ export default function Home() {
         "Posisi_Berkas"
       ]);
 
-      // Parsing Koordinat Asli / Fallback Distribusi Geospasial
       let latVal = parseFloat(getFieldValue(row, ["Latitude", "Lat", "Y"]));
       let lngVal = parseFloat(getFieldValue(row, ["Longitude", "Lng", "Long", "X"]));
 
@@ -243,7 +240,6 @@ export default function Home() {
     processExcelData(rawJsonData);
   }, [processExcelData]);
 
-  // --- INTEGRASI SSE REAL-TIME ---
   useEffect(() => {
     const savedFileName = localStorage.getItem("atr_bpn_file_name");
     const savedTimestamp = localStorage.getItem("atr_bpn_last_updated");
@@ -320,7 +316,6 @@ export default function Home() {
     }
   };
 
-  // Metrics KPI
   const totalBerkas = dataRincian.length;
   const totalSesuai = dataRincian.filter((i) => i.status === "GREEN").length;
   const totalHampir = dataRincian.filter((i) => i.status === "YELLOW").length;
@@ -428,7 +423,6 @@ export default function Home() {
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f1f5f9", padding: "32px 20px", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
       
-      {/* Import CSS Leaflet */}
       <link
         rel="stylesheet"
         href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -449,20 +443,39 @@ export default function Home() {
               margin: 10mm;
             }
 
-            body, html { 
+            /* Force Reset Overflow Semua Element */
+            html, body, #__next, main, div {
+              height: auto !important;
+              min-height: 0 !important;
+              max-height: none !important;
+              overflow: visible !important;
+              position: static !important;
+              float: none !important;
+            }
+
+            body { 
               background: white !important; 
               padding: 0 !important; 
               margin: 0 !important;
-              height: auto !important;
-              overflow: visible !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
             }
 
-            .no-print { 
+            /* Sembunyikan Komponen Non-Laporan saat Cetak */
+            .no-print, 
+            .leaflet-container, 
+            .leaflet-pane,
+            canvas { 
               display: none !important; 
+              height: 0 !important;
+              opacity: 0 !important;
             }
 
+            /* Tampilkan Tabel Cetak */
             .only-print { 
               display: block !important; 
+              width: 100% !important;
+              overflow: visible !important;
             }
 
             .print-container { 
@@ -472,17 +485,9 @@ export default function Home() {
               position: static !important;
               box-shadow: none !important;
               border: none !important;
+              background: transparent !important;
             }
 
-            .card-box { 
-              box-shadow: none !important; 
-              border: 1px solid #cbd5e1 !important; 
-              overflow: visible !important;
-              page-break-inside: avoid;
-              margin-bottom: 20px !important;
-            }
-
-            /* Memastikan seluruh baris tabel dicetak lengkap multi-halaman */
             .only-print table { 
               width: 100% !important;
               border-collapse: collapse !important;
@@ -497,17 +502,11 @@ export default function Home() {
             .only-print thead { 
               display: table-header-group !important; 
             }
-
-            /* Memastikan warna background badge ter-render saat cetak */
-            * {
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-            }
           }
         `}</style>
 
-        {/* Header Dashboard */}
-        <header style={{ marginBottom: "28px", backgroundColor: "#0f172a", color: "white", padding: "28px 32px", borderRadius: "16px", boxShadow: "0 10px 25px -5px rgba(15, 23, 42, 0.25)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "20px" }}>
+        {/* Header Dashboard - PERBAIKAN: Ditambah class 'no-print' agar tidak memblokir cetakan */}
+        <header className="no-print" style={{ marginBottom: "28px", backgroundColor: "#0f172a", color: "white", padding: "28px 32px", borderRadius: "16px", boxShadow: "0 10px 25px -5px rgba(15, 23, 42, 0.25)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "20px" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
               <div style={{ display: "inline-block", backgroundColor: "#1e293b", color: "#38bdf8", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: "600" }}>
@@ -524,7 +523,7 @@ export default function Home() {
             <p style={{ margin: "4px 0 0 0", color: "#94a3b8", fontSize: "15px" }}>Kantor Pertanahan Kabupaten Kotawaringin Barat</p>
           </div>
 
-          <div className="no-print" style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
             <button
               onClick={() => window.print()}
               style={{
@@ -559,8 +558,8 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Card KPI Metrics */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "20px", marginBottom: "28px" }}>
+        {/* Card KPI Metrics - PERBAIKAN: Ditambah class 'no-print' */}
+        <div className="no-print" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "20px", marginBottom: "28px" }}>
           <div 
             onClick={() => { setSelectedFilter("semua"); setCurrentPage(1); }}
             className="card-box"
@@ -635,15 +634,15 @@ export default function Home() {
           </div>
         </div>
 
-        {/* PANEL PETA GIS GEOTAS */}
-        <div className="card-box" style={{ backgroundColor: "white", padding: "20px", borderRadius: "14px", border: "1px solid #e2e8f0", marginBottom: "28px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" }}>
+        {/* PANEL PETA GIS GEOTAS - PERBAIKAN: Ditambah class 'no-print' */}
+        <div className="card-box no-print" style={{ backgroundColor: "white", padding: "20px", borderRadius: "14px", border: "1px solid #e2e8f0", marginBottom: "28px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <span style={{ fontSize: "18px" }}>🗺️</span>
               <h3 style={{ margin: 0, fontSize: "16px", color: "#0f172a", fontWeight: "700" }}>Peta Interaktif Sebaran Persil & Berkas Pertanahan (GEOTAS)</h3>
             </div>
 
-            <div className="no-print" style={{ display: "flex", gap: "6px", backgroundColor: "#f1f5f9", padding: "4px", borderRadius: "8px", border: "1px solid #cbd5e1" }}>
+            <div style={{ display: "flex", gap: "6px", backgroundColor: "#f1f5f9", padding: "4px", borderRadius: "8px", border: "1px solid #cbd5e1" }}>
               <button
                 onClick={() => setBasemap("osm")}
                 style={{
@@ -702,9 +701,9 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Visualisasi Grafik */}
+        {/* Visualisasi Grafik - PERBAIKAN: Ditambah class 'no-print' */}
         {dataLayanan.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: topRedJabatan.length > 0 ? "2fr 1fr" : "1fr", gap: "20px", marginBottom: "28px" }}>
+          <div className="no-print" style={{ display: "grid", gridTemplateColumns: topRedJabatan.length > 0 ? "2fr 1fr" : "1fr", gap: "20px", marginBottom: "28px" }}>
             <div className="card-box" style={{ backgroundColor: "white", padding: "24px", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
               <h3 style={{ margin: "0 0 16px 0", fontSize: "15px", color: "#0f172a", fontWeight: "700" }}>📊 Grafik Status per Jenis Layanan</h3>
               <div style={{ height: "300px" }}>
@@ -724,8 +723,15 @@ export default function Home() {
           </div>
         )}
 
-        {/* Tabel Data */}
+        {/* Tabel Data Container */}
         <div className="card-box print-container" style={{ backgroundColor: "white", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
+          
+          {/* Header Tabel untuk Versi Cetak PDF */}
+          <div className="only-print" style={{ marginBottom: "20px", borderBottom: "2px solid #0f172a", paddingBottom: "10px" }}>
+            <h2 style={{ margin: 0, fontSize: "18px", color: "#0f172a" }}>LAPORAN MONITORING TUNGGAKAN BERKAS PERTANAHAN</h2>
+            <p style={{ margin: "4px 0 0 0", fontSize: "12px", color: "#475569" }}>Kantor Pertanahan Kabupaten Kotawaringin Barat | Tanggal: {lastUpdated || "-"}</p>
+          </div>
+
           <div className="no-print" style={{ padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px", borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               {[
@@ -770,7 +776,7 @@ export default function Home() {
             />
           </div>
 
-          {/* 1. Tabel Tampilan Web (Pagination Aktif) */}
+          {/* 1. Tabel Tampilan Web (Pagination) */}
           <div className="table-responsive-wrapper no-print">
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", color: "#334155" }}>
               <thead>
@@ -824,7 +830,7 @@ export default function Home() {
             </table>
           </div>
 
-          {/* 2. Tabel Cetak PDF (Menampilkan Seluruh Baris 'filteredRincian' Tanpa Pagination) */}
+          {/* 2. Tabel Cetak PDF (Menampilkan Seluruh Data Tanpa Pagination) */}
           <div className="only-print">
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10px", color: "#334155" }}>
               <thead>
