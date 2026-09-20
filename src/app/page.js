@@ -174,11 +174,9 @@ export default function Home() {
       let cleanedKegiatan = formatValue(rawKegiatan);
       let cleanedPosisi = formatValue(rawPosisi);
 
-      if (
-        cleanedPosisi.toLowerCase() === "pengukuran dan pemetaan kadastral" ||
-        cleanedPosisi.toLowerCase() === "pengukuran dan pemetan kadastral"
-      ) {
-        cleanedPosisi = "-";
+      // Normalisasi posisi agar masuk ke Top Bottleneck dengan tepat
+      if (cleanedPosisi.toLowerCase().includes("pengukuran") || cleanedPosisi.toLowerCase().includes("pemetan")) {
+        cleanedPosisi = "Pengukuran Dan Pemetan Kadastral";
       }
 
       if (fullNoBerkas !== "-") {
@@ -236,7 +234,7 @@ export default function Home() {
         const result = await res.json();
         
         if (result.success && result.data && result.data.length > 0) {
-          processAndSetData(result.data, savedFileName || "Auto-Sync Web ATR/BPN", false);
+          processAndSetData(result.data, savedFileName || "Data Dummy Sistem", false);
 
           if (result.isNewSync && result.lastUpdated) {
             setLastUpdated(result.lastUpdated);
