@@ -203,7 +203,6 @@ export default function Home() {
     setCurrentPage(1);
   }, []);
 
-  // PERBAIKAN: Fungsi processAndSetData diperbarui agar dapat menerima parameter forceNewTimestamp
   const processAndSetData = useCallback((rawJsonData, sourceName, forceNewTimestamp = false) => {
     if (!Array.isArray(rawJsonData) || rawJsonData.length === 0) return;
 
@@ -251,7 +250,6 @@ export default function Home() {
 
     fetchDataAuto();
 
-    // PERBAIKAN: Menambahkan listener komunikasi dengan Ekstensi Browser
     const handleExtensionMessage = (event) => {
       if (event.data && (event.data.type === "ATR_BPN_UPDATE_DATA" || event.data.action === "UPDATE_DASHBOARD")) {
         const extData = event.data.data || event.data.rows;
@@ -760,4 +758,3 @@ export default function Home() {
     </div>
   );
 }
-```[cite: 18]
