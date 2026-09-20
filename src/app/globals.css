@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #f3f4f6;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* FIX CETAK MULTI-HALAMAN PDF */
+@media print {
+  html, body {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: white !important;
+  }
+
+  /* Melepas kuncian wrapper Next.js */
+  body > div, main {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    position: static !important;
+  }
+}
