@@ -6,3 +6,21 @@ body {
   background-color: #f3f4f6;
   font-family: system-ui, -apple-system, sans-serif;
 }
+
+/* FIX CETAK PDF MULTI-HALAMAN */
+@media print {
+  html, body {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: white !important;
+  }
+
+  /* Menyembunyikan elemen bawaan yang mengunci tinggi */
+  #__next, main {
+    height: auto !important;
+    overflow: visible !important;
+    position: static !important;
+  }
+}
