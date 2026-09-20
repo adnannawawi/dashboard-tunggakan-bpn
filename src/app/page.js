@@ -1,3 +1,11 @@
+const Map = dynamic(() => import("../components/Map"), { ... })
+```[cite: 12]
+
+Jika folder fisik yang ada di direktori proyek Anda bernama **`component`** (tanpa huruf **`s`** di belakang), maka impor tersebut akan selalu gagal menghasilkan error `Module not found`.
+
+Berikut adalah perbaikan kode `page.js` lengkap yang sudah disesuaikan agar path impor komponen `Map` menggunakan **`../component/Map`** (tanpa huruf 's'). Silakan salin (*copy*) kode di bawah ini dan tempelkan (*paste*) ke dalam file `src/app/page.js` di laptop Anda:
+
+```javascript
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -14,8 +22,8 @@ import {
 } from "chart.js";
 import { Bar } from "react-chartjs-2";
 
-// Dynamic Import Komponen Map secara utuh dengan SSR false
-const Map = dynamic(() => import("../components/Map"), {
+// Perbaikan path: disesuaikan dari ../components/Map menjadi ../component/Map (tanpa huruf 's')
+const Map = dynamic(() => import("../component/Map"), {
   ssr: false,
   loading: () => <div style={{ padding: "20px", textAlign: "center", color: "#64748b" }}>Memuat Peta GEOTAS...</div>,
 });
