@@ -441,6 +441,10 @@ export default function Home() {
       <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
         
         <style jsx global>{`
+          /* Tampilan Normal (Layar Web) */
+          .only-print { display: none !important; }
+
+          /* Tampilan Khusus Cetak PDF */
           @media print {
             body, html { 
               background: white !important; 
@@ -450,6 +454,7 @@ export default function Home() {
               overflow: visible !important;
             }
             .no-print { display: none !important; }
+            .only-print { display: block !important; }
             .print-container { 
               width: 100% !important; 
               max-width: 100% !important; 
@@ -745,7 +750,8 @@ export default function Home() {
             />
           </div>
 
-          <div className="table-responsive-wrapper">
+          {/* 1. Tabel untuk Tampilan Layar (Menggunakan Pagination) */}
+          <div className="table-responsive-wrapper no-print">
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", color: "#334155" }}>
               <thead>
                 <tr style={{ backgroundColor: "#f1f5f9", borderBottom: "1px solid #cbd5e1", textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.5px" }}>
@@ -794,6 +800,40 @@ export default function Home() {
                     </td>
                   </tr>
                 )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* 2. Tabel untuk Hasil Cetak PDF (Menggunakan Seluruh Data / filteredRincian) */}
+          <div className="only-print">
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px", color: "#334155" }}>
+              <thead>
+                <tr style={{ backgroundColor: "#f1f5f9", textTransform: "uppercase" }}>
+                  <th style={{ padding: "8px 10px", borderBottom: "1px solid #cbd5e1" }}>#</th>
+                  <th style={{ padding: "8px 10px", borderBottom: "1px solid #cbd5e1", textAlign: "left" }}>Nomor Berkas</th>
+                  <th style={{ padding: "8px 10px", borderBottom: "1px solid #cbd5e1", textAlign: "left" }}>Tgl Terdaftar</th>
+                  <th style={{ padding: "8px 10px", borderBottom: "1px solid #cbd5e1", textAlign: "left" }}>Jatuh Tempo</th>
+                  <th style={{ padding: "8px 10px", borderBottom: "1px solid #cbd5e1", textAlign: "left" }}>Tgl Selesai</th>
+                  <th style={{ padding: "8px 10px", borderBottom: "1px solid #cbd5e1", textAlign: "left" }}>Nama Kegiatan</th>
+                  <th style={{ padding: "8px 10px", borderBottom: "1px solid #cbd5e1", textAlign: "left" }}>Nama Pemohon</th>
+                  <th style={{ padding: "8px 10px", borderBottom: "1px solid #cbd5e1", textAlign: "left" }}>Posisi Terakhir / Petugas</th>
+                  <th style={{ padding: "8px 10px", borderBottom: "1px solid #cbd5e1", textAlign: "center" }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRincian.map((row, idx) => (
+                  <tr key={idx} style={{ borderBottom: "1px solid #e2e8f0" }}>
+                    <td style={{ padding: "8px 10px", textAlign: "center" }}>{idx + 1}</td>
+                    <td style={{ padding: "8px 10px", fontWeight: "bold" }}>{row.noBerkas}</td>
+                    <td style={{ padding: "8px 10px" }}>{row.tglTerdaftar}</td>
+                    <td style={{ padding: "8px 10px" }}>{row.jatuhtempo}</td>
+                    <td style={{ padding: "8px 10px" }}>{row.tglSelesai}</td>
+                    <td style={{ padding: "8px 10px" }}>{row.namaKegiatan}</td>
+                    <td style={{ padding: "8px 10px" }}>{row.namaPemohon}</td>
+                    <td style={{ padding: "8px 10px" }}>{row.jabatan}</td>
+                    <td style={{ padding: "8px 10px", textAlign: "center" }}>{row.status}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
