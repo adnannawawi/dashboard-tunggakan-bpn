@@ -331,7 +331,6 @@ export default function Home() {
 
   const totalPages = Math.ceil(filteredRincian.length / itemsPerPage) || 1;
   
-  // Memecah seluruh data yang terfilter menjadi kumpulan blok halaman (masing-masing 10 baris) khusus saat mencetak
   const printablePagesData = useMemo(() => {
     const chunks = [];
     for (let i = 0; i < filteredRincian.length; i += itemsPerPage) {
@@ -434,6 +433,7 @@ export default function Home() {
               height: auto !important;
               overflow: visible !important;
             }
+            /* Hanya sembunyikan tombol cetak dan form upload file */
             .no-print { display: none !important; }
             
             /* Tampilkan tabel perulangan khusus cetak */
@@ -475,7 +475,7 @@ export default function Home() {
         `}</style>
 
         {/* Header Dashboard */}
-        <header className="no-print" style={{ marginBottom: "28px", backgroundColor: "#0f172a", color: "white", padding: "28px 32px", borderRadius: "16px", boxShadow: "0 10px 25px -5px rgba(15, 23, 42, 0.25)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "20px" }}>
+        <header style={{ marginBottom: "28px", backgroundColor: "#0f172a", color: "white", padding: "28px 32px", borderRadius: "16px", boxShadow: "0 10px 25px -5px rgba(15, 23, 42, 0.25)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "20px" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
               <div style={{ display: "inline-block", backgroundColor: "#1e293b", color: "#38bdf8", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: "600" }}>
@@ -493,7 +493,9 @@ export default function Home() {
           </div>
 
           <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+            {/* Tombol Cetak PDF disembunyikan saat dicetak menggunakan kelas no-print */}
             <button
+              className="no-print"
               onClick={() => window.print()}
               style={{
                 backgroundColor: "#2563eb",
@@ -512,7 +514,8 @@ export default function Home() {
               🖨️ Cetak Laporan PDF
             </button>
 
-            <div style={{ backgroundColor: "#1e293b", border: "1px solid #334155", padding: "10px 16px", borderRadius: "12px" }}>
+            {/* Kotak Upload Excel / JSON disembunyikan saat dicetak menggunakan kelas no-print */}
+            <div className="no-print" style={{ backgroundColor: "#1e293b", border: "1px solid #334155", padding: "10px 16px", borderRadius: "12px" }}>
               <label style={{ display: "block", fontSize: "11px", color: "#cbd5e1", marginBottom: "4px", fontWeight: "600" }}>
                 📤 Upload Excel / JSON (Back Office)
               </label>
