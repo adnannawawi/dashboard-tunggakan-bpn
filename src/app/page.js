@@ -157,8 +157,6 @@ export default function Home() {
       const tglDiserahkan = getFieldValue(row, ["Tanggal_Diserahkan", "Tgl_Diserahkan", "Dikirim"]);
       
       const rawKegiatan = getFieldValue(row, ["Nama_Kegiatan", "Nama_Layanan", "Kegiatan", "Layanan"]);
-      
-      // DIPERBAIKI: Prioritaskan pencarian kolom khusus Petugas/Posisi Terakhir agar tidak tertukar dengan Layanan
       const rawPosisi = getFieldValue(row, [
         "Posisi_Terakhir", 
         "Nama_Petugas", 
@@ -427,52 +425,53 @@ export default function Home() {
           }
 
           @media print {
-  body, html { 
-    background: white !important; 
-    padding: 0 !important; 
-    margin: 0 !important;
-    height: auto !important;
-    overflow: visible !important;
-  }
-  
-  .no-print { display: none !important; }
-  .screen-only-section { display: none !important; }
-  .print-only-section { display: block !important; }
+            body, html { 
+              background: white !important; 
+              padding: 0 !important; 
+              margin: 0 !important;
+              height: auto !important;
+              overflow: visible !important;
+            }
+            
+            .no-print { display: none !important; }
+            .screen-only-section { display: none !important; }
+            .print-only-section { display: block !important; }
 
-  .print-page-container {
-    page-break-after: always;
-    break-after: page;
-    page-break-inside: avoid;
-    /* Ganti min-height: 100vh dengan pengaturan tinggi otomatis agar tidak ada spasi kosong */
-    height: 100vh; 
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-  }
+            .print-page-container {
+              page-break-after: always;
+              break-after: page;
+              page-break-inside: avoid;
+              height: auto !important;
+              min-height: auto !important;
+              box-sizing: border-box;
+              display: flex;
+              flex-direction: column;
+              justify-content: flex-start;
+              margin-bottom: 0 !important;
+              padding-bottom: 10px !important;
+            }
 
-  .print-page-container:last-child {
-    page-break-after: auto;
-    break-after: auto;
-    height: auto; /* Halaman terakhir menyesuaikan konten */
-  }
+            .print-page-container:last-child {
+              page-break-after: auto;
+              break-after: auto;
+            }
 
-  .card-box { 
-    box-shadow: none !important; 
-    border: 1px solid #cbd5e1 !important; 
-    overflow: visible !important;
-  }
-  table { 
-    width: 100% !important; 
-  }
-  tr { 
-    page-break-inside: avoid; 
-    page-break-after: auto;
-  }
-  thead { 
-    display: table-header-group; 
-  }
-}
+            .card-box { 
+              box-shadow: none !important; 
+              border: 1px solid #cbd5e1 !important; 
+              overflow: visible !important;
+            }
+            table { 
+              width: 100% !important; 
+            }
+            tr { 
+              page-break-inside: avoid; 
+              page-break-after: auto;
+            }
+            thead { 
+              display: table-header-group; 
+            }
+          }
         `}</style>
 
         {/* Header Dashboard */}
@@ -781,7 +780,7 @@ export default function Home() {
         {/* TAMPILAN KHUSUS CETAK PDF */}
         <div className="print-only-section">
           {printablePagesData.map((chunk, pageIndex) => (
-            <div key={pageIndex} className="print-page-container" style={{ marginBottom: "20px" }}>
+            <div key={pageIndex} className="print-page-container">
               
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "2px solid #0f172a", paddingBottom: "8px", marginBottom: "12px" }}>
                 <div>
