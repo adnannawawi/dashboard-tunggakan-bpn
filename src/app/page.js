@@ -157,14 +157,16 @@ export default function Home() {
       const tglDiserahkan = getFieldValue(row, ["Tanggal_Diserahkan", "Tgl_Diserahkan", "Dikirim"]);
       
       const rawKegiatan = getFieldValue(row, ["Nama_Kegiatan", "Nama_Layanan", "Kegiatan", "Layanan"]);
+      
+      // DIPERBAIKI: Prioritaskan pencarian kolom khusus Petugas/Posisi Terakhir agar tidak tertukar dengan Layanan
       const rawPosisi = getFieldValue(row, [
         "Posisi_Terakhir", 
-        "Posisi_Berkas", 
         "Nama_Petugas", 
         "Petugas_Terakhir", 
         "Nama_Jabatan", 
         "Jabatan", 
-        "Petugas"
+        "Petugas",
+        "Posisi_Berkas"
       ]);
 
       let fullNoBerkas = formatValue(nomor);
@@ -174,10 +176,6 @@ export default function Home() {
 
       let cleanedKegiatan = formatValue(rawKegiatan);
       let cleanedPosisi = formatValue(rawPosisi);
-
-      if (cleanedPosisi.toLowerCase().includes("pengukuran") || cleanedPosisi.toLowerCase().includes("pemetan")) {
-        cleanedPosisi = "Pengukuran Dan Pemetan Kadastral";
-      }
 
       if (fullNoBerkas !== "-") {
         const computedStatus = calculateStatus(jatuhtempo, tglSelesai);
