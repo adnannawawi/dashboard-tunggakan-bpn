@@ -437,18 +437,15 @@ export default function Home() {
             .screen-only-section { display: none !important; }
             .print-only-section { display: block !important; }
 
+            /* Perbaikan utama: Ubah ke block dan pastikan tinggi otomatis */
             .print-page-container {
+              display: block !important;
+              height: auto !important;
+              min-height: 0 !important;
               page-break-after: always;
               break-after: page;
-              page-break-inside: avoid;
-              height: auto !important;
-              min-height: auto !important;
-              box-sizing: border-box;
-              display: flex;
-              flex-direction: column;
-              justify-content: flex-start;
-              margin-bottom: 0 !important;
-              padding-bottom: 10px !important;
+              margin: 0 !important;
+              padding: 0 !important;
             }
 
             .print-page-container:last-child {
@@ -458,8 +455,7 @@ export default function Home() {
 
             .card-box { 
               box-shadow: none !important; 
-              border: 1px solid #cbd5e1 !important; 
-              overflow: visible !important;
+              border: none !important; 
             }
             table { 
               width: 100% !important; 
@@ -812,7 +808,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div style={{ flex: 1 }}>
+              <div>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px", color: "#334155" }}>
                   <thead>
                     <tr style={{ backgroundColor: "#f1f5f9", borderBottom: "1px solid #cbd5e1", textTransform: "uppercase", fontSize: "10px", letterSpacing: "0.5px" }}>
@@ -858,7 +854,7 @@ export default function Home() {
                 </table>
               </div>
 
-              <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "6px", display: "flex", justifyContent: "space-between", fontSize: "10px", color: "#94a3b8" }}>
+              <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "6px", marginTop: "10px", display: "flex", justifyContent: "space-between", fontSize: "10px", color: "#94a3b8" }}>
                 <span>Dokumen Resmi Kantor Pertanahan Kabupaten Kotawaringin Barat</span>
                 <span>Halaman {pageIndex + 1}</span>
               </div>
