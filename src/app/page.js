@@ -366,11 +366,11 @@ export default function Home() {
     },
   };
 
+  // Diubah: Mengambil seluruh posisi tanpa .slice(0, 5)
   const topRedJabatan = useMemo(() => {
     return [...dataJabatan]
       .filter((j) => j.sudah > 0)
-      .sort((a, b) => b.sudah - a.sudah)
-      .slice(0, 5);
+      .sort((a, b) => b.sudah - a.sudah);
   }, [dataJabatan]);
 
   const chartDataJabatan = {
@@ -437,7 +437,6 @@ export default function Home() {
             .screen-only-section { display: none !important; }
             .print-only-section { display: block !important; }
 
-            /* Perbaikan utama: Ubah ke block dan pastikan tinggi otomatis */
             .print-page-container {
               display: block !important;
               height: auto !important;
@@ -615,9 +614,10 @@ export default function Home() {
 
             {topRedJabatan.length > 0 && (
               <div className="card-box" style={{ backgroundColor: "white", padding: "24px", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
-                <h3 style={{ margin: "0 0 6px 0", fontSize: "15px", color: "#991b1b", fontWeight: "700" }}>⚠️ Top Bottleneck</h3>
-                <p style={{ margin: "0 0 16px 0", fontSize: "12px", color: "#64748b" }}>Petugas dengan berkas RED terbanyak</p>
-                <div style={{ height: "240px" }}>
+                <h3 style={{ margin: "0 0 6px 0", fontSize: "15px", color: "#991b1b", fontWeight: "700" }}>⚠️ Bottleneck Berkas RED</h3>
+                <p style={{ margin: "0 0 16px 0", fontSize: "12px", color: "#64748b" }}>Semua posisi / petugas dengan berkas terlambat</p>
+                {/* Tinggi grafik diatur dinamis berdasarkan jumlah baris jabatan */}
+                <div style={{ height: `${Math.max(300, topRedJabatan.length * 35)}px` }}>
                   <Bar data={chartDataJabatan} options={chartOptionsJabatan} />
                 </div>
               </div>
