@@ -29,19 +29,20 @@ export default function Home() {
   const itemsPerPage = 10;
 
   // Format Jam Indonesia saat ini
-  const formatCurrentTimestamp = () => {
+  const formatCurrentTimestamp = useCallback(() => {
     return `${new Date().toLocaleString("id-ID", {
       dateStyle: "medium",
       timeStyle: "short",
     })} WIB`;
-  };
+  }, []);
 
   // Helper Formatting & Parsing Tanggal
   const parseDate = (val) => {
     if (!val) return null;
     if (val instanceof Date && !isNaN(val)) {
-      val.setHours(0, 0, 0, 0);
-      return val;
+      const d = new Date(val);
+      d.setHours(0, 0, 0, 0);
+      return d;
     }
     if (typeof val === "number") {
       const date = new Date(Math.round((val - 25569) * 86400 * 1000));
@@ -215,7 +216,7 @@ export default function Home() {
     localStorage.setItem("atr_bpn_last_updated", updatedTime);
 
     processExcelData(rawJsonData);
-  }, [processExcelData]);
+  }, [formatCurrentTimestamp, processExcelData]);
 
   useEffect(() => {
     const fetchDataAuto = async () => {
@@ -266,7 +267,7 @@ export default function Home() {
     return () => {
       window.removeEventListener("message", handleExtensionMessage);
     };
-  }, [processAndSetData]);
+  }, [processAndSetData, formatCurrentTimestamp]);
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -275,28 +276,31 @@ export default function Home() {
     const isJson = file.name.endsWith(".json");
     const currentTimestamp = formatCurrentTimestamp();
 
+    const reader = new FileReader();
     if (isJson) {
-      const reader = new FileReader();
       reader.onload = (evt) => {
         try {
           const parsedData = JSON.parse(evt.target.result);
           const dataArray = Array.isArray(parsedData) ? parsedData : parsedData.data || [];
           processAndSetData(dataArray, file.name, currentTimestamp);
-        } catch (err) {
+        } catch {
           alert("Gagal membaca file JSON. Pastikan format file benar.");
         }
       };
       reader.readAsText(file);
     } else {
-      const reader = new FileReader();
       reader.onload = (evt) => {
-        const bstr = evt.target.result;
-        const workbook = XLSX.read(bstr, { type: "binary", cellDates: true });
-        const sheetName = workbook.SheetNames[0];
-        const ws = workbook.Sheets[sheetName];
+        try {
+          const bstr = evt.target.result;
+          const workbook = XLSX.read(bstr, { type: "binary", cellDates: true });
+          const sheetName = workbook.SheetNames[0];
+          const ws = workbook.Sheets[sheetName];
 
-        const rawDataJson = XLSX.utils.sheet_to_json(ws, { defval: "" });
-        processAndSetData(rawDataJson, file.name, currentTimestamp);
+          const rawDataJson = XLSX.utils.sheet_to_json(ws, { defval: "" });
+          processAndSetData(rawDataJson, file.name, currentTimestamp);
+        } catch {
+          alert("Gagal membaca file Excel. Pastikan format file benar.");
+        }
       };
       reader.readAsBinaryString(file);
     }
@@ -433,9 +437,7 @@ export default function Home() {
               overflow: visible !important;
             }
             
-            /* Sembunyikan elemen no-print (tombol cetak & kotak upload) */
             .no-print { display: none !important; }
-            
             .screen-only-section { display: none !important; }
             .print-only-section { display: block !important; }
 
@@ -605,7 +607,7 @@ export default function Home() {
 
         </div>
 
-        {/* Visualisasi Grafik (Tampil di Layar dan Ikut Tercetak di awal) */}
+        {/* Visualisasi Grafik */}
         {dataLayanan.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: topRedJabatan.length > 0 ? "2fr 1fr" : "1fr", gap: "20px", marginBottom: "28px" }}>
             
@@ -629,7 +631,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* 1. TAMPILAN LAYAR (INTERAKTIF NORMAL) */}
+        {/* TAMPILAN LAYAR (INTERAKTIF NORMAL) */}
         <div className="card-box screen-only-section" style={{ backgroundColor: "white", borderRadius: "14px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
           
           <div style={{ padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px", borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
@@ -776,13 +778,11 @@ export default function Home() {
 
         </div>
 
-
-        {/* 2. TAMPILAN KHUSUS CETAK PDF (10 BERKAS PER HALAMAN) */}
+        {/* TAMPILAN KHUSUS CETAK PDF */}
         <div className="print-only-section">
           {printablePagesData.map((chunk, pageIndex) => (
             <div key={pageIndex} className="print-page-container" style={{ marginBottom: "20px" }}>
               
-              {/* Header tiap halaman cetak */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "2px solid #0f172a", paddingBottom: "8px", marginBottom: "12px" }}>
                 <div>
                   <h3 style={{ margin: 0, fontSize: "14px", color: "#0f172a", fontWeight: "700" }}>Kantor Pertanahan Kabupaten Kotawaringin Barat</h3>
@@ -794,7 +794,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Ringkasan KPI Mini di atas halaman cetak */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px", marginBottom: "12px" }}>
                 <div style={{ border: "1px solid #cbd5e1", padding: "6px 10px", borderRadius: "6px" }}>
                   <div style={{ fontSize: "9px", color: "#64748b" }}>Total Berkas</div>
@@ -814,7 +813,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Tabel isi 10 berkas */}
               <div style={{ flex: 1 }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px", color: "#334155" }}>
                   <thead>
@@ -861,7 +859,6 @@ export default function Home() {
                 </table>
               </div>
 
-              {/* Footer halaman cetak */}
               <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "6px", display: "flex", justifyContent: "space-between", fontSize: "10px", color: "#94a3b8" }}>
                 <span>Dokumen Resmi Kantor Pertanahan Kabupaten Kotawaringin Barat</span>
                 <span>Halaman {pageIndex + 1}</span>
